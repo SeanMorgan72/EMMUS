@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.24)
 
 project(EMMUS
@@ -89,18 +88,6 @@ set(
 # ============================================================================
 # Project CMake Modules
 # ============================================================================
-#
-# This tells CMake to search:
-#
-#   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/
-#
-# when resolving custom include() commands such as:
-#
-#   include(EMMUSWarnings)
-#   include(EMMUSSanitizers)
-#   include(EMMUSInstall)
-#
-# ============================================================================
 
 list(
     APPEND
@@ -178,6 +165,15 @@ endif()
 # ============================================================================
 # Testing
 # ============================================================================
+#
+# CTest provides the project-level testing infrastructure.
+#
+# BUILD_TESTING is supplied by CTest and defaults to ON.
+#
+# EMMUS_BUILD_TESTS is the EMMUS-specific switch that controls whether the
+# EMMUS GoogleTest suite is included in the build.
+#
+# ============================================================================
 
 include(CTest)
 
@@ -185,6 +181,8 @@ if(
     BUILD_TESTING
     AND EMMUS_BUILD_TESTS
 )
+
+    enable_testing()
 
     add_subdirectory(
         tests
@@ -222,6 +220,10 @@ message(STATUS
 
 message(STATUS
     "Build Tests        : ${EMMUS_BUILD_TESTS}"
+)
+
+message(STATUS
+    "CTest              : ${BUILD_TESTING}"
 )
 
 message(STATUS
