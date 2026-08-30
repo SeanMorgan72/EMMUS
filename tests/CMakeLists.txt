@@ -161,7 +161,7 @@ function(emmuss_add_test_suite target)
 
         PRIVATE
 
-            #EMMUS::Core
+            EMMUS::Core
 
             GTest::gtest_main
     )
