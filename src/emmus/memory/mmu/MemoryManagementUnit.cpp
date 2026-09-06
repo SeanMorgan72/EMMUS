@@ -303,7 +303,25 @@ MemoryManagementUnit::processPageFault(
             return result;
         }
 
-        replacementPolicy_.pageLoaded(pageId, frameId.value());
+        /*
+         * A successful page fault represents an actual memory access.
+         * Notify the policy both that the page became resident and that
+         * the newly loaded page was accessed.
+         *
+         * This second notification is especially important for the
+         * Optimal policy, whose reference-sequence position advances
+         * through pageAccessed(). It is also correct for LRU and Clock,
+         * while FIFO intentionally leaves its ordering unchanged.
+         */
+        replacementPolicy_.pageLoaded(
+            pageId,
+            frameId.value()
+        );
+
+        replacementPolicy_.pageAccessed(
+            pageId,
+            frameId.value()
+        );
 
         return result;
     }
@@ -371,10 +389,15 @@ MemoryManagementUnit::processPageFault(
     }
 
     /*
-     * Capture dirty state before Page::unmapFromFrame(), because unmapping
-     * a Page intentionally clears both dirty and referenced state.
+     * Capture the victim's state before Page::unmapFromFrame(), because
+     * unmapping a Page intentionally clears its dirty and referenced
+     * state.
+     *
+     * These values are required if the replacement transaction must be
+     * rolled back after the victim has been detached.
      */
     const bool dirtyEviction = victimPage->isDirty();
+    const bool victimReferenced = victimPage->isReferenced();
 
     /*
      * Validate the physical address before modifying any replacement
@@ -419,6 +442,10 @@ MemoryManagementUnit::processPageFault(
      * There were no free frames before the victim was removed, so after
      * the failed requested-page mapping the victim frame is expected to
      * be the only available frame.
+     *
+     * The victim's dirty and referenced metadata are restored after its
+     * residency is restored so a failed replacement does not alter the
+     * victim's architectural state.
      */
     const auto restoreVictim =
         [&]() noexcept -> bool
@@ -453,6 +480,16 @@ MemoryManagementUnit::processPageFault(
             );
 
             return false;
+        }
+
+        if (dirtyEviction)
+        {
+            victimPage->markDirty();
+        }
+
+        if (victimReferenced)
+        {
+            victimPage->markReferenced();
         }
 
         replacementPolicy_.pageLoaded(
@@ -609,8 +646,18 @@ MemoryManagementUnit::processPageFault(
     /*
      * The replacement has now completed successfully. Only now should
      * the policy and MMU replacement statistics be updated.
+     *
+     * pageAccessed() is also required here because the requested page
+     * represents the access that caused the page fault. In particular,
+     * Optimal uses this notification to advance its reference-sequence
+     * position.
      */
     replacementPolicy_.pageLoaded(
+        pageId,
+        requestedFrame.value()
+    );
+
+    replacementPolicy_.pageAccessed(
         pageId,
         requestedFrame.value()
     );
