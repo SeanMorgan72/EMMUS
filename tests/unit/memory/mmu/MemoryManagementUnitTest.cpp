@@ -27,25 +27,34 @@ using Page = emmus::memory::virtual_memory::Page;
 
 using PageTable = emmus::memory::mmu::PageTable;
 
-using PhysicalMemoryManager = emmus::memory::physical::PhysicalMemoryManager;
+using PhysicalMemoryManager =
+    emmus::memory::physical::PhysicalMemoryManager;
 
-using FIFOPageReplacementPolicy = emmus::algorithms::replacement::FIFOPageReplacementPolicy;
+using FIFOPageReplacementPolicy =
+    emmus::algorithms::replacement::FIFOPageReplacementPolicy;
 
 using MemoryAccess = emmus::memory::access::MemoryAccess;
 
-using MemoryAccessOperation = emmus::memory::access::MemoryAccessOperation;
+using MemoryAccessOperation =
+    emmus::memory::access::MemoryAccessOperation;
 
-using VirtualAddress = emmus::memory::access::VirtualAddress;
+using VirtualAddress =
+    emmus::memory::access::VirtualAddress;
 
-using PageSize = emmus::memory::access::PageSize;
+using PageSize =
+    emmus::memory::access::PageSize;
 
-using AccessSequenceNumber = emmus::memory::access::AccessSequenceNumber;
+using AccessSequenceNumber =
+    emmus::memory::access::AccessSequenceNumber;
 
-using ProcessId = emmus::memory::identifiers::ProcessId;
+using ProcessId =
+    emmus::memory::identifiers::ProcessId;
 
-using PageId = emmus::memory::identifiers::PageId;
+using PageId =
+    emmus::memory::identifiers::PageId;
 
-using FrameId = emmus::memory::identifiers::FrameId;
+using FrameId =
+    emmus::memory::identifiers::FrameId;
 
 class RecordingReplacementPolicy final
     : public emmus::algorithms::replacement::IPageReplacementPolicy
@@ -142,8 +151,12 @@ protected:
         std::uint64_t sequence = 0
     ) const
     {
-        return MemoryAccess(processId, VirtualAddress{
-                static_cast<std::uint64_t>(pageId.value()) * kPageSize + offset
+        return MemoryAccess(
+            processId,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) *
+                    kPageSize +
+                offset
             },
             MemoryAccessOperation::Read,
             AccessSequenceNumber{sequence}
@@ -157,8 +170,12 @@ protected:
         std::uint64_t sequence = 0
     ) const
     {
-        return MemoryAccess(processId, VirtualAddress{
-                static_cast<std::uint64_t>(pageId.value()) * kPageSize + offset
+        return MemoryAccess(
+            processId,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) *
+                    kPageSize +
+                offset
             },
             MemoryAccessOperation::Write,
             AccessSequenceNumber{sequence}
@@ -173,7 +190,9 @@ protected:
     std::unique_ptr<MemoryManagementUnit> mmu;
 };
 
-TEST_F(MemoryManagementUnitTest, StartsWithEmptyPageRegistryAndZeroCounters)
+TEST_F(
+    MemoryManagementUnitTest,
+    StartsWithEmptyPageRegistryAndZeroCounters)
 {
     EXPECT_EQ(mmu->registeredPageCount(), 0U);
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
@@ -211,7 +230,9 @@ TEST_F(MemoryManagementUnitTest, RejectsDuplicatePageRegistration)
     EXPECT_EQ(mmu->registeredPageCount(), 1U);
 }
 
-TEST_F(MemoryManagementUnitTest, RejectsRegistrationOfAlreadyResidentPage)
+TEST_F(
+    MemoryManagementUnitTest,
+    RejectsRegistrationOfAlreadyResidentPage)
 {
     Page page{kPage0, kProcess1};
 
@@ -225,7 +246,9 @@ TEST_F(MemoryManagementUnitTest, RejectsRegistrationOfAlreadyResidentPage)
     EXPECT_EQ(mmu->registeredPageCount(), 0U);
 }
 
-TEST_F(MemoryManagementUnitTest, FirstReadCausesPageFaultLoadsPageAndTranslatesAddress)
+TEST_F(
+    MemoryManagementUnitTest,
+    FirstReadCausesPageFaultLoadsPageAndTranslatesAddress)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -274,8 +297,24 @@ TEST_F(MemoryManagementUnitTest, FirstReadCausesPageFaultLoadsPageAndTranslatesA
     );
 
     ASSERT_EQ(replacementPolicy.loadedEvents.size(), 1U);
-    EXPECT_EQ(replacementPolicy.loadedEvents[0].pageId, kPage0);
-    EXPECT_EQ(replacementPolicy.loadedEvents[0].frameId, kFrame0);
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0
+    );
+
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 1U);
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -283,7 +322,46 @@ TEST_F(MemoryManagementUnitTest, FirstReadCausesPageFaultLoadsPageAndTranslatesA
     );
 }
 
-TEST_F(MemoryManagementUnitTest, ResidentReadDoesNotCausePageFault)
+TEST_F(
+    MemoryManagementUnitTest,
+    InitialPageFaultNotifiesPolicyLoadedBeforeAccessed)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(Page{kPage0, kProcess1})
+    );
+
+    const auto result =
+        mmu->access(
+            read(kProcess1, kPage0, 0, 1)
+        );
+
+    ASSERT_TRUE(result.success());
+
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 1U);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 1U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0
+    );
+}
+
+TEST_F(
+    MemoryManagementUnitTest,
+    ResidentReadDoesNotCausePageFault)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -294,6 +372,9 @@ TEST_F(MemoryManagementUnitTest, ResidentReadDoesNotCausePageFault)
             read(kProcess1, kPage0, 10, 1)
         ).success()
     );
+
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 1U);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 1U);
 
     const auto result =
         mmu->access(
@@ -313,12 +394,26 @@ TEST_F(MemoryManagementUnitTest, ResidentReadDoesNotCausePageFault)
         0U
     );
 
-    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 1U);
-    EXPECT_EQ(replacementPolicy.accessedEvents[0].pageId, kPage0);
-    EXPECT_EQ(replacementPolicy.accessedEvents[0].frameId, kFrame0);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 2U);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[1].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[1].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.size(),
+        1U
+    );
 }
 
-TEST_F(MemoryManagementUnitTest, ResidentWriteMarksPageDirtyAndReferenced)
+TEST_F(
+    MemoryManagementUnitTest,
+    ResidentWriteMarksPageDirtyAndReferenced)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -339,13 +434,36 @@ TEST_F(MemoryManagementUnitTest, ResidentWriteMarksPageDirtyAndReferenced)
     EXPECT_TRUE(page->isReferenced());
     EXPECT_TRUE(page->isDirty());
 
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 1U);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 1U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0
+    );
+
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
         0U
     );
 }
 
-TEST_F(MemoryManagementUnitTest, MultiplePagesUseDistinctFreeFrames)
+TEST_F(
+    MemoryManagementUnitTest,
+    MultiplePagesUseDistinctFreeFrames)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -387,9 +505,50 @@ TEST_F(MemoryManagementUnitTest, MultiplePagesUseDistinctFreeFrames)
         mmu->pageReplacementCount(),
         0U
     );
+
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 2U);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 2U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[1].pageId,
+        kPage1
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[1].frameId,
+        kFrame1
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[1].pageId,
+        kPage1
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[1].frameId,
+        kFrame1
+    );
 }
 
-TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIsInvoked)
+TEST_F(
+    MemoryManagementUnitTest,
+    FreeFramesAreAllocatedBeforeReplacementPolicyIsInvoked)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -403,8 +562,6 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
         mmu->registerPage(Page{kPage2, kProcess1})
     );
 
-    // First page fault: frame 0 is free.
-    // The replacement policy must not be consulted.
     replacementPolicy.nextVictim = kFrame1;
 
     const auto first =
@@ -415,7 +572,10 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
     ASSERT_TRUE(first.success());
     EXPECT_TRUE(first.pageFault());
     EXPECT_FALSE(first.pageReplacement());
-    EXPECT_EQ(first.frameId(), std::optional<FrameId>{kFrame0});
+    EXPECT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -427,8 +587,6 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
         0U
     );
 
-    // Second page fault: frame 1 is still free.
-    // The replacement policy must still not be consulted.
     const auto second =
         mmu->access(
             read(kProcess1, kPage1, 0, 2)
@@ -437,7 +595,10 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
     ASSERT_TRUE(second.success());
     EXPECT_TRUE(second.pageFault());
     EXPECT_FALSE(second.pageReplacement());
-    EXPECT_EQ(second.frameId(), std::optional<FrameId>{kFrame1});
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -464,8 +625,6 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
         0U
     );
 
-    // Third page fault: there are no free frames, so the replacement policy
-    // should now be consulted.
     const auto third =
         mmu->access(
             read(kProcess1, kPage2, 0, 3)
@@ -474,7 +633,10 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
     ASSERT_TRUE(third.success());
     EXPECT_TRUE(third.pageFault());
     EXPECT_TRUE(third.pageReplacement());
-    EXPECT_EQ(third.frameId(), std::optional<FrameId>{kFrame1});
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -492,7 +654,9 @@ TEST_F(MemoryManagementUnitTest, FreeFramesAreAllocatedBeforeReplacementPolicyIs
     );
 }
 
-TEST_F(MemoryManagementUnitTest, FullMemoryCausesReplacementUsingPolicyVictim)
+TEST_F(
+    MemoryManagementUnitTest,
+    FullMemoryCausesReplacementUsingPolicyVictim)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -550,9 +714,13 @@ TEST_F(MemoryManagementUnitTest, FullMemoryCausesReplacementUsingPolicyVictim)
     ASSERT_NE(requested, nullptr);
     EXPECT_TRUE(requested->isResident());
     ASSERT_TRUE(requested->mappedFrame().has_value());
-    EXPECT_EQ(requested->mappedFrame().value(), kFrame0);
+    EXPECT_EQ(
+        requested->mappedFrame().value(),
+        kFrame0
+    );
 
     EXPECT_FALSE(pageTable.isMapped(kPage0));
+
     EXPECT_EQ(
         pageTable.lookup(kPage2),
         std::optional<FrameId>{kFrame0}
@@ -582,9 +750,91 @@ TEST_F(MemoryManagementUnitTest, FullMemoryCausesReplacementUsingPolicyVictim)
         replacementPolicy.loadedEvents.back().frameId,
         kFrame0
     );
+
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 3U);
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().pageId,
+        kPage2
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().frameId,
+        kFrame0
+    );
 }
 
-TEST_F(MemoryManagementUnitTest, DirtyVictimProducesDirtyEviction)
+TEST_F(
+    MemoryManagementUnitTest,
+    ReplacementNotifiesPolicyInRemovalLoadAccessOrder)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(Page{kPage0, kProcess1})
+    );
+
+    ASSERT_TRUE(
+        mmu->registerPage(Page{kPage1, kProcess1})
+    );
+
+    ASSERT_TRUE(
+        mmu->registerPage(Page{kPage2, kProcess1})
+    );
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(kProcess1, kPage0, 0, 1)
+        ).success()
+    );
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(kProcess1, kPage1, 0, 2)
+        ).success()
+    );
+
+    replacementPolicy.nextVictim = kFrame0;
+
+    const auto result =
+        mmu->access(
+            read(kProcess1, kPage2, 0, 3)
+        );
+
+    ASSERT_TRUE(result.success());
+    ASSERT_TRUE(result.pageReplacement());
+
+    ASSERT_EQ(replacementPolicy.removedEvents.size(), 1U);
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 3U);
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 3U);
+
+    EXPECT_EQ(
+        replacementPolicy.removedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.removedEvents[0].frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.back().pageId,
+        kPage2
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.back().frameId,
+        kFrame0
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().pageId,
+        kPage2
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().frameId,
+        kFrame0
+    );
+}
+
+TEST_F(
+    MemoryManagementUnitTest,
+    DirtyVictimProducesDirtyEviction)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -643,9 +893,41 @@ TEST_F(MemoryManagementUnitTest, DirtyVictimProducesDirtyEviction)
     EXPECT_TRUE(requested->isResident());
     EXPECT_FALSE(requested->isDirty());
     EXPECT_TRUE(requested->isReferenced());
+
+    ASSERT_EQ(replacementPolicy.removedEvents.size(), 1U);
+    EXPECT_EQ(
+        replacementPolicy.removedEvents[0].pageId,
+        kPage0
+    );
+    EXPECT_EQ(
+        replacementPolicy.removedEvents[0].frameId,
+        kFrame0
+    );
+
+    ASSERT_EQ(replacementPolicy.loadedEvents.size(), 3U);
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.back().pageId,
+        kPage2
+    );
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.back().frameId,
+        kFrame0
+    );
+
+    ASSERT_EQ(replacementPolicy.accessedEvents.size(), 3U);
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().pageId,
+        kPage2
+    );
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.back().frameId,
+        kFrame0
+    );
 }
 
-TEST_F(MemoryManagementUnitTest, WrongProcessCannotAccessRegisteredPage)
+TEST_F(
+    MemoryManagementUnitTest,
+    WrongProcessCannotAccessRegisteredPage)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -667,13 +949,25 @@ TEST_F(MemoryManagementUnitTest, WrongProcessCannotAccessRegisteredPage)
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
     EXPECT_EQ(mmu->pageReplacementCount(), 0U);
 
+    EXPECT_TRUE(
+        replacementPolicy.loadedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.accessedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.removedEvents.empty()
+    );
+
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
         0U
     );
 }
 
-TEST_F(MemoryManagementUnitTest, UnregisteredPageAccessFails)
+TEST_F(
+    MemoryManagementUnitTest,
+    UnregisteredPageAccessFails)
 {
     const auto result =
         mmu->access(
@@ -690,13 +984,56 @@ TEST_F(MemoryManagementUnitTest, UnregisteredPageAccessFails)
 
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
 
+    EXPECT_TRUE(
+        replacementPolicy.loadedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.accessedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.removedEvents.empty()
+    );
+
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
         0U
     );
 }
 
-TEST_F(MemoryManagementUnitTest, ResetUnmapsResidentPagesClearsCountersAndResetsPolicy)
+TEST_F(
+    MemoryManagementUnitTest,
+    FailedAccessDoesNotNotifyReplacementPolicy)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(Page{kPage0, kProcess1})
+    );
+
+    const auto result =
+        mmu->access(
+            read(kProcess2, kPage0, 0, 1)
+        );
+
+    ASSERT_FALSE(result.success());
+
+    EXPECT_TRUE(
+        replacementPolicy.loadedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.accessedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.removedEvents.empty()
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+}
+
+TEST_F(
+    MemoryManagementUnitTest,
+    ResetUnmapsResidentPagesClearsCountersAndResetsPolicy)
 {
     ASSERT_TRUE(
         mmu->registerPage(Page{kPage0, kProcess1})
@@ -739,6 +1076,16 @@ TEST_F(MemoryManagementUnitTest, ResetUnmapsResidentPagesClearsCountersAndResets
         1U
     );
 
+    EXPECT_FALSE(
+        replacementPolicy.loadedEvents.empty()
+    );
+    EXPECT_FALSE(
+        replacementPolicy.accessedEvents.empty()
+    );
+    EXPECT_FALSE(
+        replacementPolicy.removedEvents.empty()
+    );
+
     mmu->reset();
 
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
@@ -747,8 +1094,14 @@ TEST_F(MemoryManagementUnitTest, ResetUnmapsResidentPagesClearsCountersAndResets
 
     EXPECT_EQ(mmu->registeredPageCount(), 3U);
 
-    EXPECT_EQ(physicalMemory.allocatedFrameCount(), 0U);
-    EXPECT_EQ(physicalMemory.freeFrameCount(), 2U);
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        0U
+    );
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        2U
+    );
 
     EXPECT_TRUE(pageTable.empty());
 
@@ -772,10 +1125,18 @@ TEST_F(MemoryManagementUnitTest, ResetUnmapsResidentPagesClearsCountersAndResets
     EXPECT_FALSE(page1->isReferenced());
     EXPECT_FALSE(page2->isReferenced());
 
-    EXPECT_TRUE(replacementPolicy.loadedEvents.empty());
-    EXPECT_TRUE(replacementPolicy.accessedEvents.empty());
-    EXPECT_TRUE(replacementPolicy.removedEvents.empty());
-    EXPECT_FALSE(replacementPolicy.nextVictim.has_value());
+    EXPECT_TRUE(
+        replacementPolicy.loadedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.accessedEvents.empty()
+    );
+    EXPECT_TRUE(
+        replacementPolicy.removedEvents.empty()
+    );
+    EXPECT_FALSE(
+        replacementPolicy.nextVictim.has_value()
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -787,8 +1148,9 @@ TEST_F(MemoryManagementUnitTest, ResetUnmapsResidentPagesClearsCountersAndResets
 // US-802: Zero Physical Frames
 // ============================================================================
 
-TEST(MemoryManagementUnitZeroFrameTest,
-     PageFaultFailsWhenPhysicalMemoryContainsZeroFrames)
+TEST(
+    MemoryManagementUnitZeroFrameTest,
+    PageFaultFailsWhenPhysicalMemoryContainsZeroFrames)
 {
     PageTable pageTable;
     PhysicalMemoryManager physicalMemoryManager{0};
@@ -798,19 +1160,25 @@ TEST(MemoryManagementUnitZeroFrameTest,
         pageTable,
         physicalMemoryManager,
         replacementPolicy,
-        PageSize{4096});
+        PageSize{4096}
+    );
 
     const auto registrationResult =
-        mmu.registerPage(Page{PageId{0}, ProcessId{100}});
+        mmu.registerPage(
+            Page{PageId{0}, ProcessId{100}}
+        );
 
     ASSERT_TRUE(registrationResult);
 
-    const auto result = mmu.access(
-        MemoryAccess{
-            ProcessId{100},
-            VirtualAddress{0},
-            MemoryAccessOperation::Read,
-            AccessSequenceNumber{1}});
+    const auto result =
+        mmu.access(
+            MemoryAccess{
+                ProcessId{100},
+                VirtualAddress{0},
+                MemoryAccessOperation::Read,
+                AccessSequenceNumber{1}
+            }
+        );
 
     EXPECT_FALSE(result.success());
 
@@ -818,13 +1186,29 @@ TEST(MemoryManagementUnitZeroFrameTest,
     EXPECT_EQ(mmu.pageReplacementCount(), 0U);
     EXPECT_EQ(mmu.dirtyEvictionCount(), 0U);
 
-    EXPECT_EQ(physicalMemoryManager.capacity(), 0U);
-    EXPECT_EQ(physicalMemoryManager.freeFrameCount(), 0U);
-    EXPECT_EQ(physicalMemoryManager.allocatedFrameCount(), 0U);
+    EXPECT_EQ(
+        physicalMemoryManager.capacity(),
+        0U
+    );
+    EXPECT_EQ(
+        physicalMemoryManager.freeFrameCount(),
+        0U
+    );
+    EXPECT_EQ(
+        physicalMemoryManager.allocatedFrameCount(),
+        0U
+    );
 
     EXPECT_TRUE(pageTable.empty());
 
-    EXPECT_EQ(replacementPolicy.statistics().replacementCount(), 0U);
-    EXPECT_EQ(replacementPolicy.statistics().dirtyEvictionCount(), 0U);
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
+        0U
+    );
 }
+
 } // namespace
