@@ -4,7 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include "emmus/algorithms/replacement/ClockPageReplacementPolicy.hpp"
 #include "emmus/algorithms/replacement/FIFOPageReplacementPolicy.hpp"
+#include "emmus/algorithms/replacement/LRUPageReplacementPolicy.hpp"
+#include "emmus/algorithms/replacement/OptimalPageReplacementPolicy.hpp"
 #include "emmus/memory/access/MemoryAccess.hpp"
 #include "emmus/memory/access/MemoryAccessResult.hpp"
 #include "emmus/memory/access/MemoryAccessTypes.hpp"
@@ -20,33 +23,47 @@ namespace emmus::tests
 class MemoryManagementUnitIntegrationTest : public ::testing::Test
 {
 protected:
-    using FIFOPageReplacementPolicy = emmus::algorithms::replacement::FIFOPageReplacementPolicy;
+    using FIFOPageReplacementPolicy =
+        emmus::algorithms::replacement::FIFOPageReplacementPolicy;
 
-    using MemoryManagementUnit = emmus::memory::mmu::MemoryManagementUnit;
+    using MemoryManagementUnit =
+        emmus::memory::mmu::MemoryManagementUnit;
 
-    using Page = emmus::memory::virtual_memory::Page;
+    using Page =
+        emmus::memory::virtual_memory::Page;
 
-    using PageTable = emmus::memory::mmu::PageTable;
+    using PageTable =
+        emmus::memory::mmu::PageTable;
 
-    using PageTablePhysicalMemoryIntegration = emmus::memory::mmu::PageTablePhysicalMemoryIntegration;
+    using PageTablePhysicalMemoryIntegration =
+        emmus::memory::mmu::PageTablePhysicalMemoryIntegration;
 
-    using PhysicalMemoryManager = emmus::memory::physical::PhysicalMemoryManager;
+    using PhysicalMemoryManager =
+        emmus::memory::physical::PhysicalMemoryManager;
 
-    using MemoryAccess = emmus::memory::access::MemoryAccess;
+    using MemoryAccess =
+        emmus::memory::access::MemoryAccess;
 
-    using MemoryAccessOperation = emmus::memory::access::MemoryAccessOperation;
+    using MemoryAccessOperation =
+        emmus::memory::access::MemoryAccessOperation;
 
-    using VirtualAddress = emmus::memory::access::VirtualAddress;
+    using VirtualAddress =
+        emmus::memory::access::VirtualAddress;
 
-    using PageSize = emmus::memory::access::PageSize;
+    using PageSize =
+        emmus::memory::access::PageSize;
 
-    using AccessSequenceNumber = emmus::memory::access::AccessSequenceNumber;
+    using AccessSequenceNumber =
+        emmus::memory::access::AccessSequenceNumber;
 
-    using ProcessId = emmus::memory::identifiers::ProcessId;
+    using ProcessId =
+        emmus::memory::identifiers::ProcessId;
 
-    using PageId = emmus::memory::identifiers::PageId;
+    using PageId =
+        emmus::memory::identifiers::PageId;
 
-    using FrameId = emmus::memory::identifiers::FrameId;
+    using FrameId =
+        emmus::memory::identifiers::FrameId;
 
     static constexpr std::uint64_t kPageSize = 4096;
 
@@ -108,7 +125,10 @@ protected:
         );
     }
 
-    void registerPage(PageId pageId, ProcessId processId = kProcess1)
+    void registerPage(
+        PageId pageId,
+        ProcessId processId = kProcess1
+    )
     {
         ASSERT_TRUE(
             mmu->registerPage(
@@ -236,14 +256,6 @@ TEST_F(
     registerPage(kPage1);
     registerPage(kPage2);
 
-    // ------------------------------------------------------------------------
-    // The first page fault occurs while both physical frames are free.
-    //
-    // FIFO has no resident entries and therefore cannot provide a useful
-    // replacement candidate. The requested page must nevertheless be loaded
-    // successfully because a free frame exists.
-    // ------------------------------------------------------------------------
-
     const auto first = mmu->access(read(kProcess1, kPage0, 64, 1));
 
     ASSERT_TRUE(first.success());
@@ -294,11 +306,6 @@ TEST_F(
 
     expectIntegratedStateIsConsistent();
 
-    // ------------------------------------------------------------------------
-    // One free frame remains. The second page fault must consume that frame
-    // rather than invoking FIFO replacement.
-    // ------------------------------------------------------------------------
-
     const auto second = mmu->access(read(kProcess1, kPage1, 128, 2));
 
     ASSERT_TRUE(second.success());
@@ -327,7 +334,6 @@ TEST_F(
         0U
     );
 
-    // No replacement was needed for either page fault.
     EXPECT_EQ(
         replacementPolicy.statistics().replacementCount(),
         0U
@@ -421,7 +427,6 @@ TEST_F(
         2U
     );
 
-    // Both page faults were satisfied by free-frame allocation.
     EXPECT_EQ(
         mmu->pageFaultCount(),
         2U
@@ -628,7 +633,6 @@ TEST_F(
 
     ASSERT_TRUE(third.frameId().has_value());
 
-    // FIFO selects the oldest resident frame, Frame 0.
     EXPECT_EQ(
         third.frameId().value(),
         kFrame0
@@ -804,10 +808,6 @@ TEST_F(
     registerPage(kPage1);
     registerPage(kPage2);
 
-    // ------------------------------------------------------------------------
-    // Page 0 uses the first free frame.
-    // ------------------------------------------------------------------------
-
     const auto first = mmu->access(read(kProcess1, kPage0, 0, 1));
 
     ASSERT_TRUE(first.success());
@@ -828,10 +828,6 @@ TEST_F(
         1U
     );
 
-    // ------------------------------------------------------------------------
-    // Page 1 uses the final free frame.
-    // ------------------------------------------------------------------------
-
     const auto second = mmu->access(read(kProcess1, kPage1, 0, 2));
 
     ASSERT_TRUE(second.success());
@@ -851,13 +847,6 @@ TEST_F(
         physicalMemory.freeFrameCount(),
         0U
     );
-
-    // ------------------------------------------------------------------------
-    // Page 2 now faults while physical memory is full.
-    //
-    // FIFO replacement is now required and selects the oldest resident page,
-    // Page 0 / Frame 0.
-    // ------------------------------------------------------------------------
 
     const auto third = mmu->access(read(kProcess1, kPage2, 0, 3));
 
@@ -1014,9 +1003,7 @@ TEST_F(
     );
 
     const Page* page0 = mmu->page(kPage0);
-
     const Page* page1 = mmu->page(kPage1);
-
     const Page* page2 = mmu->page(kPage2);
 
     ASSERT_NE(page0, nullptr);
@@ -1026,6 +1013,1417 @@ TEST_F(
     EXPECT_FALSE(page0->isResident());
     EXPECT_TRUE(page1->isResident());
     EXPECT_TRUE(page2->isResident());
+}
+
+
+// ============================================================================
+// US-803: LRU Replacement Algorithm Invocation
+// ============================================================================
+
+class MemoryManagementUnitLRUIntegrationTest : public ::testing::Test
+{
+protected:
+    using LRUPageReplacementPolicy =
+        emmus::algorithms::replacement::LRUPageReplacementPolicy;
+
+    using MemoryManagementUnit =
+        emmus::memory::mmu::MemoryManagementUnit;
+
+    using Page =
+        emmus::memory::virtual_memory::Page;
+
+    using PageTable =
+        emmus::memory::mmu::PageTable;
+
+    using PageTablePhysicalMemoryIntegration =
+        emmus::memory::mmu::PageTablePhysicalMemoryIntegration;
+
+    using PhysicalMemoryManager =
+        emmus::memory::physical::PhysicalMemoryManager;
+
+    using MemoryAccess =
+        emmus::memory::access::MemoryAccess;
+
+    using MemoryAccessOperation =
+        emmus::memory::access::MemoryAccessOperation;
+
+    using VirtualAddress =
+        emmus::memory::access::VirtualAddress;
+
+    using PageSize =
+        emmus::memory::access::PageSize;
+
+    using AccessSequenceNumber =
+        emmus::memory::access::AccessSequenceNumber;
+
+    using ProcessId =
+        emmus::memory::identifiers::ProcessId;
+
+    using PageId =
+        emmus::memory::identifiers::PageId;
+
+    using FrameId =
+        emmus::memory::identifiers::FrameId;
+
+    static constexpr std::uint64_t kPageSize = 4096;
+
+    static constexpr ProcessId kProcess1{100};
+
+    static constexpr PageId kPage0{0};
+    static constexpr PageId kPage1{1};
+    static constexpr PageId kPage2{2};
+
+    static constexpr FrameId kFrame0{0};
+    static constexpr FrameId kFrame1{1};
+
+    void SetUp() override
+    {
+        pageSize = PageSize{kPageSize};
+
+        mmu = std::make_unique<MemoryManagementUnit>(
+            pageTable,
+            physicalMemory,
+            replacementPolicy,
+            pageSize
+        );
+    }
+
+    MemoryAccess read(
+        PageId pageId,
+        std::uint64_t offset = 0,
+        std::uint64_t sequence = 0
+    ) const
+    {
+        return MemoryAccess(
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) * kPageSize
+                    + offset
+            },
+            MemoryAccessOperation::Read,
+            AccessSequenceNumber{sequence}
+        );
+    }
+
+    void registerPage(PageId pageId)
+    {
+        ASSERT_TRUE(
+            mmu->registerPage(
+                Page{pageId, kProcess1}
+            )
+        );
+    }
+
+    void expectIntegratedStateIsConsistent() const
+    {
+        EXPECT_TRUE(
+            integration.isConsistent()
+        );
+    }
+
+    PageTable pageTable;
+    PhysicalMemoryManager physicalMemory{2};
+    LRUPageReplacementPolicy replacementPolicy;
+    PageSize pageSize{kPageSize};
+
+    PageTablePhysicalMemoryIntegration integration{
+        pageTable,
+        physicalMemory
+    };
+
+    std::unique_ptr<MemoryManagementUnit> mmu;
+};
+
+
+TEST_F(
+    MemoryManagementUnitLRUIntegrationTest,
+    FreeFramesAreUsedBeforeLRUReplacementIsInvoked
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    EXPECT_TRUE(first.pageFault());
+    EXPECT_FALSE(first.pageReplacement());
+    EXPECT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    EXPECT_TRUE(second.pageFault());
+    EXPECT_FALSE(second.pageReplacement());
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitLRUIntegrationTest,
+    FullMemoryFaultInvokesLRUAndSelectsLeastRecentlyUsedPage
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * Fill physical memory:
+     *
+     *   Page 0 -> Frame 0
+     *   Page 1 -> Frame 1
+     *
+     * Accessing Page 0 again makes Page 0 MRU and leaves Page 1 as
+     * the least recently used resident page.
+     */
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+    ASSERT_FALSE(second.pageReplacement());
+
+    const auto residentAccess = mmu->access(read(kPage0, 0, 3));
+
+    ASSERT_TRUE(residentAccess.success());
+    EXPECT_FALSE(residentAccess.pageFault());
+    EXPECT_FALSE(residentAccess.pageReplacement());
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    const auto third = mmu->access(read(kPage2, 0, 4));
+
+    ASSERT_TRUE(third.success());
+
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_FALSE(third.dirtyEviction());
+
+    /*
+     * Page 1 was LRU, so Frame 1 must be reused for Page 2.
+     */
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        3U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_TRUE(page0->isResident());
+    EXPECT_FALSE(page1->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_FALSE(
+        pageTable.lookup(kPage1).has_value()
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage1),
+        std::nullopt
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitLRUIntegrationTest,
+    DirtyLRUReplacementReportsDirtyEviction
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * Page 0 is loaded by a write and therefore becomes dirty.
+     * Page 1 is loaded afterward and is MRU. Page 0 remains LRU.
+     */
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+
+    const auto dirtyAccess = mmu->access(
+        emmus::memory::access::MemoryAccess{
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(kPage0.value()) * kPageSize
+            },
+            MemoryAccessOperation::Write,
+            AccessSequenceNumber{2}
+        }
+    );
+
+    ASSERT_TRUE(dirtyAccess.success());
+    EXPECT_FALSE(dirtyAccess.pageFault());
+
+    const Page* dirtyPage = mmu->page(kPage0);
+
+    ASSERT_NE(dirtyPage, nullptr);
+    EXPECT_TRUE(dirtyPage->isResident());
+    EXPECT_TRUE(dirtyPage->isDirty());
+
+    const auto second = mmu->access(read(kPage1, 0, 3));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+
+    const auto third = mmu->access(read(kPage2, 0, 4));
+
+    ASSERT_TRUE(third.success());
+
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_TRUE(third.dirtyEviction());
+
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        mmu->dirtyEvictionCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
+        0U
+    );
+
+    const Page* evictedPage = mmu->page(kPage0);
+
+    ASSERT_NE(evictedPage, nullptr);
+    EXPECT_FALSE(evictedPage->isResident());
+    EXPECT_FALSE(evictedPage->isDirty());
+    EXPECT_FALSE(evictedPage->isReferenced());
+
+    const Page* requestedPage = mmu->page(kPage2);
+
+    ASSERT_NE(requestedPage, nullptr);
+    EXPECT_TRUE(requestedPage->isResident());
+    EXPECT_TRUE(requestedPage->isReferenced());
+    EXPECT_FALSE(requestedPage->isDirty());
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+// ============================================================================
+// US-803: Clock Replacement Algorithm Invocation
+// ============================================================================
+
+class MemoryManagementUnitClockIntegrationTest : public ::testing::Test
+{
+protected:
+    using ClockPageReplacementPolicy =
+        emmus::algorithms::replacement::ClockPageReplacementPolicy;
+
+    using MemoryManagementUnit =
+        emmus::memory::mmu::MemoryManagementUnit;
+
+    using Page =
+        emmus::memory::virtual_memory::Page;
+
+    using PageTable =
+        emmus::memory::mmu::PageTable;
+
+    using PageTablePhysicalMemoryIntegration =
+        emmus::memory::mmu::PageTablePhysicalMemoryIntegration;
+
+    using PhysicalMemoryManager =
+        emmus::memory::physical::PhysicalMemoryManager;
+
+    using MemoryAccess =
+        emmus::memory::access::MemoryAccess;
+
+    using MemoryAccessOperation =
+        emmus::memory::access::MemoryAccessOperation;
+
+    using VirtualAddress =
+        emmus::memory::access::VirtualAddress;
+
+    using PageSize =
+        emmus::memory::access::PageSize;
+
+    using AccessSequenceNumber =
+        emmus::memory::access::AccessSequenceNumber;
+
+    using ProcessId =
+        emmus::memory::identifiers::ProcessId;
+
+    using PageId =
+        emmus::memory::identifiers::PageId;
+
+    using FrameId =
+        emmus::memory::identifiers::FrameId;
+
+    static constexpr std::uint64_t kPageSize = 4096;
+
+    static constexpr ProcessId kProcess1{100};
+
+    static constexpr PageId kPage0{0};
+    static constexpr PageId kPage1{1};
+    static constexpr PageId kPage2{2};
+
+    static constexpr FrameId kFrame0{0};
+    static constexpr FrameId kFrame1{1};
+
+    void SetUp() override
+    {
+        pageSize = PageSize{kPageSize};
+
+        mmu = std::make_unique<MemoryManagementUnit>(
+            pageTable,
+            physicalMemory,
+            replacementPolicy,
+            pageSize
+        );
+    }
+
+    MemoryAccess read(
+        PageId pageId,
+        std::uint64_t offset = 0,
+        std::uint64_t sequence = 0
+    ) const
+    {
+        return MemoryAccess(
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) * kPageSize
+                    + offset
+            },
+            MemoryAccessOperation::Read,
+            AccessSequenceNumber{sequence}
+        );
+    }
+
+    void registerPage(PageId pageId)
+    {
+        ASSERT_TRUE(
+            mmu->registerPage(
+                Page{pageId, kProcess1}
+            )
+        );
+    }
+
+    void expectIntegratedStateIsConsistent() const
+    {
+        EXPECT_TRUE(
+            integration.isConsistent()
+        );
+    }
+
+    PageTable pageTable;
+    PhysicalMemoryManager physicalMemory{2};
+    ClockPageReplacementPolicy replacementPolicy;
+    PageSize pageSize{kPageSize};
+
+    PageTablePhysicalMemoryIntegration integration{
+        pageTable,
+        physicalMemory
+    };
+
+    std::unique_ptr<MemoryManagementUnit> mmu;
+};
+
+
+TEST_F(
+    MemoryManagementUnitClockIntegrationTest,
+    FreeFramesAreUsedBeforeClockReplacementIsInvoked
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    EXPECT_TRUE(first.pageFault());
+    EXPECT_FALSE(first.pageReplacement());
+    EXPECT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    EXPECT_TRUE(second.pageFault());
+    EXPECT_FALSE(second.pageReplacement());
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitClockIntegrationTest,
+    FullMemoryFaultInvokesClockAndSelectsSecondChanceVictim
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * Loading Page 0 and Page 1 gives both entries a reference bit.
+     * The MMU also reports the successful faulting accesses through
+     * pageAccessed(), so both entries are referenced.
+     *
+     * The next fault invokes Clock with the hand at Frame 0. Clock
+     * gives Frame 0 a second chance and then Frame 1 a second chance,
+     * clearing both reference bits. On the next scan Frame 0 is the
+     * first zero-reference entry and is selected.
+     */
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+    ASSERT_FALSE(second.pageReplacement());
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    const auto third = mmu->access(read(kPage2, 0, 3));
+
+    ASSERT_TRUE(third.success());
+
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_FALSE(third.dirtyEviction());
+
+    /*
+     * Clock should select Page 0 / Frame 0 after giving both initially
+     * referenced entries a second chance.
+     */
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        3U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_FALSE(page0->isResident());
+    EXPECT_TRUE(page1->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    EXPECT_FALSE(
+        pageTable.isMapped(kPage0)
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage1),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage2),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::nullopt
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage1),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage2),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitClockIntegrationTest,
+    ClockReplacementMaintainsConsistentMappingsAcrossRepeatedFaults
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+    ASSERT_FALSE(second.pageReplacement());
+
+    const auto third = mmu->access(read(kPage2, 0, 3));
+
+    ASSERT_TRUE(third.success());
+    ASSERT_TRUE(third.pageFault());
+    ASSERT_TRUE(third.pageReplacement());
+
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    expectIntegratedStateIsConsistent();
+
+    /*
+     * Page 0 is now nonresident. A subsequent fault for Page 0 exercises
+     * another complete Clock replacement cycle and verifies that frame
+     * ownership remains stable and consistent.
+     */
+    const auto fourth = mmu->access(read(kPage0, 0, 4));
+
+    ASSERT_TRUE(fourth.success());
+    EXPECT_TRUE(fourth.pageFault());
+    EXPECT_TRUE(fourth.pageReplacement());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        4U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_TRUE(page0->isResident());
+
+    const std::size_t residentCount =
+        static_cast<std::size_t>(page0->isResident())
+        + static_cast<std::size_t>(page1->isResident())
+        + static_cast<std::size_t>(page2->isResident());
+
+    EXPECT_EQ(
+        residentCount,
+        2U
+    );
+
+    EXPECT_EQ(
+        pageTable.size(),
+        physicalMemory.allocatedFrameCount()
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitClockIntegrationTest,
+    DirtyClockReplacementReportsDirtyEviction
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    const auto first = mmu->access(
+        emmus::memory::access::MemoryAccess{
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(kPage0.value()) * kPageSize
+            },
+            MemoryAccessOperation::Write,
+            AccessSequenceNumber{1}
+        }
+    );
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+
+    const Page* dirtyPage = mmu->page(kPage0);
+
+    ASSERT_NE(dirtyPage, nullptr);
+    EXPECT_TRUE(dirtyPage->isResident());
+    EXPECT_TRUE(dirtyPage->isDirty());
+
+    /*
+     * Both Clock entries have been referenced. Clock gives them both a
+     * second chance before selecting Frame 0, which contains the dirty
+     * Page 0.
+     */
+    const auto third = mmu->access(read(kPage2, 0, 3));
+
+    ASSERT_TRUE(third.success());
+
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_TRUE(third.dirtyEviction());
+
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        mmu->dirtyEvictionCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
+        0U
+    );
+
+    const Page* evictedPage = mmu->page(kPage0);
+
+    ASSERT_NE(evictedPage, nullptr);
+    EXPECT_FALSE(evictedPage->isResident());
+    EXPECT_FALSE(evictedPage->isDirty());
+    EXPECT_FALSE(evictedPage->isReferenced());
+
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_TRUE(page1->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+// ============================================================================
+// US-803: Optimal Replacement Algorithm Invocation
+// ============================================================================
+
+class MemoryManagementUnitOptimalIntegrationTest : public ::testing::Test
+{
+protected:
+    using OptimalPageReplacementPolicy =
+        emmus::algorithms::replacement::OptimalPageReplacementPolicy;
+
+    using MemoryManagementUnit =
+        emmus::memory::mmu::MemoryManagementUnit;
+
+    using Page =
+        emmus::memory::virtual_memory::Page;
+
+    using PageTable =
+        emmus::memory::mmu::PageTable;
+
+    using PageTablePhysicalMemoryIntegration =
+        emmus::memory::mmu::PageTablePhysicalMemoryIntegration;
+
+    using PhysicalMemoryManager =
+        emmus::memory::physical::PhysicalMemoryManager;
+
+    using MemoryAccess =
+        emmus::memory::access::MemoryAccess;
+
+    using MemoryAccessOperation =
+        emmus::memory::access::MemoryAccessOperation;
+
+    using VirtualAddress =
+        emmus::memory::access::VirtualAddress;
+
+    using PageSize =
+        emmus::memory::access::PageSize;
+
+    using AccessSequenceNumber =
+        emmus::memory::access::AccessSequenceNumber;
+
+    using ProcessId =
+        emmus::memory::identifiers::ProcessId;
+
+    using PageId =
+        emmus::memory::identifiers::PageId;
+
+    using FrameId =
+        emmus::memory::identifiers::FrameId;
+
+    static constexpr std::uint64_t kPageSize = 4096;
+
+    static constexpr ProcessId kProcess1{100};
+
+    static constexpr PageId kPage0{0};
+    static constexpr PageId kPage1{1};
+    static constexpr PageId kPage2{2};
+
+    static constexpr FrameId kFrame0{0};
+    static constexpr FrameId kFrame1{1};
+
+    void SetUp() override
+    {
+        pageSize = PageSize{kPageSize};
+
+        mmu = std::make_unique<MemoryManagementUnit>(
+            pageTable,
+            physicalMemory,
+            replacementPolicy,
+            pageSize
+        );
+    }
+
+    MemoryAccess read(
+        PageId pageId,
+        std::uint64_t offset = 0,
+        std::uint64_t sequence = 0
+    ) const
+    {
+        return MemoryAccess(
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) * kPageSize
+                    + offset
+            },
+            MemoryAccessOperation::Read,
+            AccessSequenceNumber{sequence}
+        );
+    }
+
+    void registerPage(PageId pageId)
+    {
+        ASSERT_TRUE(
+            mmu->registerPage(
+                Page{pageId, kProcess1}
+            )
+        );
+    }
+
+    void expectIntegratedStateIsConsistent() const
+    {
+        EXPECT_TRUE(
+            integration.isConsistent()
+        );
+    }
+
+    PageTable pageTable;
+    PhysicalMemoryManager physicalMemory{2};
+    OptimalPageReplacementPolicy replacementPolicy;
+    PageSize pageSize{kPageSize};
+
+    PageTablePhysicalMemoryIntegration integration{
+        pageTable,
+        physicalMemory
+    };
+
+    std::unique_ptr<MemoryManagementUnit> mmu;
+};
+
+
+TEST_F(
+    MemoryManagementUnitOptimalIntegrationTest,
+    FreeFramesAreUsedBeforeOptimalReplacementIsInvoked
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+
+    /*
+     * Reference sequence is deliberately configured so that Optimal has
+     * meaningful future-use information. No replacement should occur while
+     * either physical frame is still free.
+     */
+    replacementPolicy.setReferenceSequence({
+        kPage0,
+        kPage1,
+        kPage0,
+        kPage1
+    });
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    EXPECT_TRUE(first.pageFault());
+    EXPECT_FALSE(first.pageReplacement());
+    EXPECT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    EXPECT_TRUE(second.pageFault());
+    EXPECT_FALSE(second.pageReplacement());
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        0U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitOptimalIntegrationTest,
+    FullMemoryFaultInvokesOptimalAndSelectsFarthestFuturePage
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * The first two accesses fill the two frames:
+     *
+     *   Access 0: Page 0 -> Frame 0
+     *   Access 1: Page 1 -> Frame 1
+     *
+     * The third access is Page 2. After the MMU reports that access through
+     * pageAccessed(), Optimal's current reference position is immediately
+     * after Page 2. The remaining sequence is:
+     *
+     *   Page 0, Page 1, Page 2
+     *
+     * Therefore Page 1 is farther in the future than Page 0 and must be
+     * selected as the victim.
+     */
+    replacementPolicy.setReferenceSequence({
+        kPage0,
+        kPage1,
+        kPage2,
+        kPage0,
+        kPage1,
+        kPage2
+    });
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+    ASSERT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+    ASSERT_FALSE(second.pageReplacement());
+    ASSERT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    const auto third = mmu->access(read(kPage2, 0, 3));
+
+    ASSERT_TRUE(third.success());
+
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_FALSE(third.dirtyEviction());
+
+    /*
+     * Optimal should select Page 1 because its next use is later than
+     * Page 0's next use.
+     */
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        3U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_TRUE(page0->isResident());
+    EXPECT_FALSE(page1->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_FALSE(
+        pageTable.lookup(kPage1).has_value()
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage1),
+        std::nullopt
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitOptimalIntegrationTest,
+    FaultingAccessAdvancesOptimalReferenceSequence
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * If the MMU failed to call pageAccessed() after a page fault, Optimal
+     * would not advance through the reference sequence for the faulting
+     * access. That would cause the replacement decision below to use the
+     * wrong future-access position.
+     *
+     * Sequence:
+     *
+     *   0, 1, 2, 0, 1
+     *
+     * After faults for 0 and 1, the fault for 2 must advance the Optimal
+     * cursor past the 2 at index 2. Consequently:
+     *
+     *   Page 0 -> next use at index 3
+     *   Page 1 -> next use at index 4
+     *
+     * Page 1 is therefore the correct victim.
+     */
+    replacementPolicy.setReferenceSequence({
+        kPage0,
+        kPage1,
+        kPage2,
+        kPage0,
+        kPage1
+    });
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(kPage0, 0, 1)
+        ).success()
+    );
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(kPage1, 0, 2)
+        ).success()
+    );
+
+    const auto third = mmu->access(
+        read(kPage2, 0, 3)
+    );
+
+    ASSERT_TRUE(third.success());
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+
+    /*
+     * Frame 1 belongs to Page 1, which has the farthest next use.
+     */
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page1 = mmu->page(kPage1);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page1, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_TRUE(page0->isResident());
+    EXPECT_FALSE(page1->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
+TEST_F(
+    MemoryManagementUnitOptimalIntegrationTest,
+    RepeatedOptimalReplacementsMaintainConsistentMappings
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * This sequence forces multiple replacement decisions while keeping
+     * future-use information available for Optimal.
+     */
+    replacementPolicy.setReferenceSequence({
+        kPage0,
+        kPage1,
+        kPage2,
+        kPage0,
+        kPage1,
+        kPage2,
+        kPage0,
+        kPage1
+    });
+
+    const auto first = mmu->access(read(kPage0, 0, 1));
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+
+    const auto second = mmu->access(read(kPage1, 0, 2));
+    ASSERT_TRUE(second.success());
+    ASSERT_TRUE(second.pageFault());
+    ASSERT_FALSE(second.pageReplacement());
+
+    const auto third = mmu->access(read(kPage2, 0, 3));
+    ASSERT_TRUE(third.success());
+    ASSERT_TRUE(third.pageFault());
+    ASSERT_TRUE(third.pageReplacement());
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    expectIntegratedStateIsConsistent();
+
+    /*
+     * Page 1 was the farthest-use victim for the first replacement. Accessing
+     * it again creates another page fault and therefore another replacement.
+     */
+    const auto fourth = mmu->access(read(kPage1, 0, 4));
+
+    ASSERT_TRUE(fourth.success());
+    EXPECT_TRUE(fourth.pageFault());
+    EXPECT_TRUE(fourth.pageReplacement());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        4U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.allocatedFrameCount(),
+        2U
+    );
+
+    EXPECT_EQ(
+        physicalMemory.freeFrameCount(),
+        0U
+    );
+
+    expectIntegratedStateIsConsistent();
 }
 
 
@@ -1109,11 +2507,7 @@ TEST(
     const auto result = mmu.access(access);
 
     EXPECT_FALSE(result.success());
-
-    // The access failed because the page fault could not be serviced.
-    // The MMU page-fault counter confirms that a page fault was detected.
     EXPECT_FALSE(result.pageFault());
-
     EXPECT_FALSE(result.pageReplacement());
     EXPECT_FALSE(result.dirtyEviction());
 
@@ -1176,6 +2570,7 @@ TEST(
     );
 }
 
+
 // ============================================================================
 // Repeated Page Faults
 // ============================================================================
@@ -1189,7 +2584,6 @@ TEST_F(
     registerPage(kPage1);
     registerPage(kPage2);
 
-    // First fault: P0 -> F0.
     const auto first = mmu->access(read(kProcess1, kPage0, 0, 1));
 
     ASSERT_TRUE(first.success());
@@ -1200,7 +2594,6 @@ TEST_F(
         std::optional<FrameId>{kFrame0}
     );
 
-    // Second fault: P1 -> F1.
     const auto second = mmu->access(read(kProcess1, kPage1, 0, 2));
 
     ASSERT_TRUE(second.success());
@@ -1211,7 +2604,6 @@ TEST_F(
         std::optional<FrameId>{kFrame1}
     );
 
-    // Third fault: P2 replaces P0 in F0.
     const auto third = mmu->access(read(kProcess1, kPage2, 0, 3));
 
     ASSERT_TRUE(third.success());
@@ -1247,8 +2639,9 @@ TEST_F(
         1U
     );
 
-    // A resident access must not cause another page fault or replacement.
-    const auto resident = mmu->access(read(kProcess1, kPage2, 128, 4));
+    const auto resident = mmu->access(
+        read(kProcess1, kPage2, 128, 4)
+    );
 
     ASSERT_TRUE(resident.success());
     EXPECT_FALSE(resident.pageFault());
@@ -1366,9 +2759,7 @@ TEST_F(
     );
 
     const Page* page0 = mmu->page(kPage0);
-
     const Page* page1 = mmu->page(kPage1);
-
     const Page* page2 = mmu->page(kPage2);
 
     ASSERT_NE(page0, nullptr);
