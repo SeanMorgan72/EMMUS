@@ -94,6 +94,10 @@ void OptimalPageReplacementPolicy::pageRemoved(
     residencyCollection_.erase(iterator);
 }
 
+void OptimalPageReplacementPolicy::recordDirtyEviction() noexcept
+{
+    statistics_.recordDirtyEviction();
+}
 
 std::optional<OptimalPageReplacementPolicy::FrameId>
 OptimalPageReplacementPolicy::chooseVictim()
