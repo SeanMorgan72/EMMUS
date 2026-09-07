@@ -312,28 +312,23 @@ void OptimalPageReplacementPolicy::advanceReferencePosition(
         return;
     }
 
-    const auto iterator =
-        std::find(
-            referenceSequence_.begin()
-                + static_cast<
-                    std::ptrdiff_t
-                  >(referencePosition_),
-            referenceSequence_.end(),
-            pageId
-        );
-
-    if (iterator == referenceSequence_.end())
+    /*
+     * The MMU has reported one actual workload access.
+     *
+     * Consume exactly one reference-sequence position. Do not search
+     * forward for another occurrence of pageId because doing so can
+     * silently skip references when the reported access stream and
+     * configured reference sequence differ.
+     */
+    if (
+        referenceSequence_[referencePosition_]
+        != pageId
+    )
     {
         return;
     }
 
-    referencePosition_ =
-        static_cast<std::size_t>(
-            std::distance(
-                referenceSequence_.begin(),
-                iterator
-            )
-        ) + 1U;
+    ++referencePosition_;
 }
 
 } // namespace emmus::algorithms::replacement
