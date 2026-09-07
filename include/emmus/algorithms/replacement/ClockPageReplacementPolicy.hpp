@@ -125,6 +125,13 @@ public:
         FrameId frameId
     ) override;
 
+    /**
+     * @brief Records a completed dirty-page eviction.
+     *
+     * Dirty-page identification and eviction remain responsibilities
+     * of the memory-management subsystem.
+     */
+    void recordDirtyEviction() noexcept override;
 
     /**
      * @brief Selects a victim using the Clock second-chance algorithm.
