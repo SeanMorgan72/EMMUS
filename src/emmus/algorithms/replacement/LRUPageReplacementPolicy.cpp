@@ -155,6 +155,10 @@ void LRUPageReplacementPolicy::pageRemoved(
     residencyList_.erase(residencyIterator);
 }
 
+void LRUPageReplacementPolicy::recordDirtyEviction() noexcept
+{
+    statistics_.recordDirtyEviction();
+}
 
 std::optional<LRUPageReplacementPolicy::FrameId>
 LRUPageReplacementPolicy::chooseVictim()
