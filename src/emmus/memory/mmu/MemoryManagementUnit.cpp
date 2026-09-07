@@ -400,6 +400,20 @@ MemoryManagementUnit::processPageFault(
     const bool victimReferenced = victimPage->isReferenced();
 
     /*
+    * A dirty victim requires simulated write-back before the page
+    * leaves physical memory. The simulator does not model a backing
+    * store, so clearing the dirty state represents the completed
+    * logical write-back.
+    *
+    * The original dirty state is retained separately so that the
+    * victim can be restored if a later replacement step fails.
+    */
+    if (dirtyEviction)
+    {
+        victimPage->clearDirty();
+    }
+    
+    /*
      * Validate the physical address before modifying any replacement
      * state. With no free frame available, the released victim frame is
      * the frame that must become available for the requested page.
@@ -667,6 +681,8 @@ MemoryManagementUnit::processPageFault(
     if (dirtyEviction)
     {
         ++dirtyEvictionCount_;
+
+        replacementPolicy_.recordDirtyEviction();
     }
 
     return result;
