@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 
@@ -62,9 +63,28 @@ public:
     }
 
 
+    void recordDirtyEviction() noexcept override
+    {
+        ++dirtyEvictionCount_;
+    }
+
+
     void reset() override
     {
+        dirtyEvictionCount_ = 0U;
     }
+
+
+    [[nodiscard]]
+    std::size_t dirtyEvictionCount() const noexcept
+    {
+        return dirtyEvictionCount_;
+    }
+
+
+private:
+
+    std::size_t dirtyEvictionCount_ = 0U;
 };
 
 } // namespace
@@ -276,6 +296,34 @@ TEST_F(
     );
 
     policy->reset();
+}
+
+
+TEST_F(
+    PageReplacementPolicyFactoryTest,
+    CreatedPolicySupportsDirtyEvictionNotification
+)
+{
+    ASSERT_TRUE(
+        factory_.registerPolicy(
+            PageReplacementPolicyType::FIFO,
+            testCreator()
+        )
+    );
+
+    auto policy =
+        factory_.create(
+            PageReplacementPolicyType::FIFO
+        );
+
+    ASSERT_NE(
+        policy,
+        nullptr
+    );
+
+    EXPECT_NO_THROW(
+        policy->recordDirtyEviction()
+    );
 }
 
 
