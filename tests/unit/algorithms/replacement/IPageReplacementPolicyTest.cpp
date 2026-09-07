@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -104,6 +106,12 @@ public:
     }
 
 
+    void recordDirtyEviction() noexcept override
+    {
+        ++dirtyEvictionCount_;
+    }
+
+
     [[nodiscard]]
     std::optional<FrameId> chooseVictim() override
     {
@@ -118,6 +126,8 @@ public:
         removedEvents_.clear();
 
         victim_.reset();
+
+        dirtyEvictionCount_ = 0U;
     }
 
 
@@ -156,6 +166,13 @@ public:
     }
 
 
+    [[nodiscard]]
+    std::size_t dirtyEvictionCount() const noexcept
+    {
+        return dirtyEvictionCount_;
+    }
+
+
 private:
 
     std::vector<LoadEvent> loadedEvents_;
@@ -165,6 +182,8 @@ private:
     std::vector<RemoveEvent> removedEvents_;
 
     std::optional<FrameId> victim_;
+
+    std::size_t dirtyEvictionCount_ = 0U;
 };
 
 } // namespace
@@ -497,6 +516,41 @@ TEST_F(
 
 
 /**
+ * @brief Verifies that recordDirtyEviction() is part of the common
+ *        replacement-policy interface and can be invoked through it.
+ */
+TEST_F(
+    PageReplacementAlgorithmFixture,
+    RecordDirtyEvictionNotifiesPolicy
+)
+{
+    TestPageReplacementPolicy concretePolicy;
+
+    Policy* policy =
+        &concretePolicy;
+
+    EXPECT_EQ(
+        concretePolicy.dirtyEvictionCount(),
+        0U
+    );
+
+    policy->recordDirtyEviction();
+
+    EXPECT_EQ(
+        concretePolicy.dirtyEvictionCount(),
+        1U
+    );
+
+    policy->recordDirtyEviction();
+
+    EXPECT_EQ(
+        concretePolicy.dirtyEvictionCount(),
+        2U
+    );
+}
+
+
+/**
  * @brief Verifies that chooseVictim() can report that no victim is
  *        currently available.
  */
@@ -616,6 +670,8 @@ TEST_F(
         FrameId{10}
     );
 
+    policy.recordDirtyEviction();
+
     policy.reset();
 
     EXPECT_TRUE(
@@ -628,6 +684,11 @@ TEST_F(
 
     EXPECT_TRUE(
         policy.removedEvents().empty()
+    );
+
+    EXPECT_EQ(
+        policy.dirtyEvictionCount(),
+        0U
     );
 
     EXPECT_FALSE(
@@ -670,6 +731,8 @@ TEST_F(
         frameId
     );
 
+    policy->recordDirtyEviction();
+
     ASSERT_EQ(
         concretePolicy->loadedEvents().size(),
         1U
@@ -682,6 +745,11 @@ TEST_F(
 
     ASSERT_EQ(
         concretePolicy->removedEvents().size(),
+        1U
+    );
+
+    EXPECT_EQ(
+        concretePolicy->dirtyEvictionCount(),
         1U
     );
 }
@@ -735,6 +803,11 @@ TEST_F(
             PageId,
             FrameId
         ) override
+        {
+        }
+
+
+        void recordDirtyEviction() noexcept override
         {
         }
 
