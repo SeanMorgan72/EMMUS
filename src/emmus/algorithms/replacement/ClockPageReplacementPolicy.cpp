@@ -101,6 +101,10 @@ void ClockPageReplacementPolicy::pageRemoved(
     }
 }
 
+void ClockPageReplacementPolicy::recordDirtyEviction() noexcept
+{
+    statistics_.recordDirtyEviction();
+}
 
 std::optional<ClockPageReplacementPolicy::FrameId>
 ClockPageReplacementPolicy::chooseVictim()
