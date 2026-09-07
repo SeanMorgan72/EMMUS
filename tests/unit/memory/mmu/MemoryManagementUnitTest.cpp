@@ -93,6 +93,11 @@ public:
         removedEvents.push_back({pageId, frameId});
     }
 
+    void recordDirtyEviction() noexcept override
+    {
+        ++dirtyEvictionCallCount;
+    }
+
     std::optional<FrameId> chooseVictim() override
     {
         ++chooseVictimCallCount;
@@ -106,11 +111,14 @@ public:
         removedEvents.clear();
         nextVictim.reset();
         chooseVictimCallCount = 0;
+        dirtyEvictionCallCount = 0;
     }
 
     std::optional<FrameId> nextVictim;
 
     std::size_t chooseVictimCallCount{0};
+
+    std::size_t dirtyEvictionCallCount{0};
 
     std::vector<LoadEvent> loadedEvents;
     std::vector<AccessEvent> accessedEvents;
@@ -199,6 +207,16 @@ TEST_F(
     EXPECT_EQ(mmu->pageReplacementCount(), 0U);
     EXPECT_EQ(mmu->dirtyEvictionCount(), 0U);
     EXPECT_EQ(mmu->pageSize(), pageSize);
+
+    EXPECT_EQ(
+        replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
 }
 
 TEST_F(MemoryManagementUnitTest, RegistersNonresidentPage)
@@ -320,6 +338,11 @@ TEST_F(
         replacementPolicy.chooseVictimCallCount,
         0U
     );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
 }
 
 TEST_F(
@@ -357,6 +380,11 @@ TEST_F(
         replacementPolicy.accessedEvents[0].frameId,
         kFrame0
     );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
 }
 
 TEST_F(
@@ -388,9 +416,15 @@ TEST_F(
 
     EXPECT_EQ(mmu->pageFaultCount(), 1U);
     EXPECT_EQ(mmu->pageReplacementCount(), 0U);
+    EXPECT_EQ(mmu->dirtyEvictionCount(), 0U);
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 
@@ -459,6 +493,11 @@ TEST_F(
         replacementPolicy.chooseVictimCallCount,
         0U
     );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
 }
 
 TEST_F(
@@ -498,6 +537,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 
@@ -583,6 +627,11 @@ TEST_F(
     );
 
     EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
         mmu->pageReplacementCount(),
         0U
     );
@@ -602,6 +651,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 
@@ -641,6 +695,11 @@ TEST_F(
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
         1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
     );
 
     EXPECT_EQ(
@@ -704,6 +763,11 @@ TEST_F(
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
         1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
     );
 
     const Page* victim = mmu->page(kPage0);
@@ -830,6 +894,11 @@ TEST_F(
         replacementPolicy.accessedEvents.back().frameId,
         kFrame0
     );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        0U
+    );
 }
 
 TEST_F(
@@ -874,6 +943,16 @@ TEST_F(
 
     EXPECT_EQ(mmu->pageReplacementCount(), 1U);
     EXPECT_EQ(mmu->dirtyEvictionCount(), 1U);
+
+    /*
+     * US-804:
+     * A dirty eviction must be reported not only by the MMU access result
+     * and MMU counter, but also directly to the active replacement policy.
+     */
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        1U
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -948,6 +1027,7 @@ TEST_F(
 
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
     EXPECT_EQ(mmu->pageReplacementCount(), 0U);
+    EXPECT_EQ(mmu->dirtyEvictionCount(), 0U);
 
     EXPECT_TRUE(
         replacementPolicy.loadedEvents.empty()
@@ -961,6 +1041,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 }
@@ -983,6 +1068,8 @@ TEST_F(
     EXPECT_FALSE(result.errorInformation().empty());
 
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
+    EXPECT_EQ(mmu->pageReplacementCount(), 0U);
+    EXPECT_EQ(mmu->dirtyEvictionCount(), 0U);
 
     EXPECT_TRUE(
         replacementPolicy.loadedEvents.empty()
@@ -996,6 +1083,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 }
@@ -1027,6 +1119,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 }
@@ -1070,6 +1167,16 @@ TEST_F(
     ASSERT_GT(mmu->pageFaultCount(), 0U);
     ASSERT_GT(mmu->pageReplacementCount(), 0U);
     ASSERT_GT(mmu->dirtyEvictionCount(), 0U);
+
+    /*
+     * US-804:
+     * The policy must receive exactly one dirty-eviction notification for
+     * the dirty Page 0 victim.
+     */
+    ASSERT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
+        1U
+    );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
@@ -1125,6 +1232,10 @@ TEST_F(
     EXPECT_FALSE(page1->isReferenced());
     EXPECT_FALSE(page2->isReferenced());
 
+    /*
+     * The replacement policy reset must clear its US-804 notification state
+     * as well as its existing event state.
+     */
     EXPECT_TRUE(
         replacementPolicy.loadedEvents.empty()
     );
@@ -1134,12 +1245,18 @@ TEST_F(
     EXPECT_TRUE(
         replacementPolicy.removedEvents.empty()
     );
+
     EXPECT_FALSE(
         replacementPolicy.nextVictim.has_value()
     );
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
+        0U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.dirtyEvictionCallCount,
         0U
     );
 }
