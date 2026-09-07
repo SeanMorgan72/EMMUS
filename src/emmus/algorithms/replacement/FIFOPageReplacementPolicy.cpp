@@ -76,6 +76,10 @@ void FIFOPageReplacementPolicy::pageRemoved(
     residencyQueue_.erase(iterator);
 }
 
+void FIFOPageReplacementPolicy::recordDirtyEviction() noexcept
+{
+    statistics_.recordDirtyEviction();
+}
 
 std::optional<FIFOPageReplacementPolicy::FrameId>
 FIFOPageReplacementPolicy::chooseVictim()
