@@ -229,6 +229,8 @@ private:
      */
     static AccessResult failure(std::string errorInformation);
 
+    static AccessResult pageFaultFailure(std::string errorInformation);
+
     PageTableType& pageTable_;
     PhysicalMemoryManager& physicalMemoryManager_;
     PageReplacementPolicy& replacementPolicy_;
