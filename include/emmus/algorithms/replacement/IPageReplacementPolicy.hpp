@@ -123,6 +123,15 @@ public:
         FrameId frameId
     ) = 0;
 
+    /**
+     * @brief Records that the MMU completed a dirty-page eviction.
+     *
+     * The policy does not determine whether a page is dirty and does
+     * not perform the eviction. The memory-management subsystem owns
+     * that responsibility. This notification allows the concrete
+     * policy to update its associated replacement statistics.
+     */
+    virtual void recordDirtyEviction() noexcept = 0;
 
     /**
      * @brief Selects a victim frame for page replacement.
