@@ -514,15 +514,20 @@ TEST_F(
 
 TEST_F(
     LRUPageReplacementPolicyTest,
-    LRUDoesNotRecordDirtyEvictions
+    RecordsDirtyEvictionWhenNotified
 )
 {
-    policy_.pageLoaded(kPage0, kFrame0);
-    policy_.pageLoaded(kPage1, kFrame1);
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        0U
+    );
 
-    ASSERT_TRUE(policy_.chooseVictim().has_value());
+    policy_.recordDirtyEviction();
 
-    EXPECT_EQ(policy_.statistics().dirtyEvictionCount(), 0U);
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
+    );
 }
 
 // ============================================================================
