@@ -58,6 +58,11 @@ TEST_F(
         policy_.statistics().totalExecutionTime(),
         std::chrono::nanoseconds::zero()
     );
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        0U
+    );
 }
 
 
@@ -961,9 +966,16 @@ TEST_F(
         policy_.chooseVictim().has_value()
     );
 
+    policy_.recordDirtyEviction();
+
     EXPECT_GT(
         policy_.statistics().replacementCount(),
         0U
+    );
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
     );
 
     policy_.reset();
@@ -1059,7 +1071,7 @@ TEST_F(
 
 TEST_F(
     ClockPageReplacementPolicyTest,
-    ClockDoesNotRecordDirtyEvictions
+    ClockDoesNotRecordDirtyEvictionsWithoutNotification
 )
 {
     policy_.pageLoaded(kPage0, kFrame0);
@@ -1069,9 +1081,117 @@ TEST_F(
         policy_.chooseVictim().has_value()
     );
 
+    /*
+     * The Clock policy does not know whether a victim page is dirty.
+     * Dirty-eviction accounting is explicitly supplied by the MMU
+     * through recordDirtyEviction().
+     */
     EXPECT_EQ(
         policy_.statistics().dirtyEvictionCount(),
         0U
+    );
+}
+
+
+TEST_F(
+    ClockPageReplacementPolicyTest,
+    RecordDirtyEvictionIncrementsDirtyEvictionStatistics
+)
+{
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        0U
+    );
+
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
+    );
+}
+
+
+TEST_F(
+    ClockPageReplacementPolicyTest,
+    RepeatedDirtyEvictionNotificationsAreCounted
+)
+{
+    policy_.recordDirtyEviction();
+    policy_.recordDirtyEviction();
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        3U
+    );
+}
+
+
+TEST_F(
+    ClockPageReplacementPolicyTest,
+    DirtyEvictionNotificationDoesNotChangeReplacementCount
+)
+{
+    policy_.pageLoaded(kPage0, kFrame0);
+    policy_.pageLoaded(kPage1, kFrame1);
+
+    EXPECT_EQ(
+        policy_.statistics().replacementCount(),
+        0U
+    );
+
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        policy_.statistics().replacementCount(),
+        0U
+    );
+}
+
+
+TEST_F(
+    ClockPageReplacementPolicyTest,
+    DirtyEvictionNotificationCanFollowVictimSelection
+)
+{
+    policy_.pageLoaded(kPage0, kFrame0);
+    policy_.pageLoaded(kPage1, kFrame1);
+
+    const auto victim =
+        policy_.chooseVictim();
+
+    ASSERT_TRUE(victim.has_value());
+
+    EXPECT_EQ(
+        policy_.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        0U
+    );
+
+    /*
+     * The MMU determines that the selected victim was dirty and
+     * notifies the policy after the replacement succeeds.
+     */
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
     );
 }
 
@@ -1223,13 +1343,8 @@ INSTANTIATE_TEST_SUITE_P(
         },
 
         /*
-         * After the first scan:
-         *
-         * victim F0
-         * hand -> F1
-         *
-         * F0 is then accessed, but this test only performs one
-         * victim selection, so F0 remains the first selected victim.
+         * Repeated references before the first selection do not alter
+         * the initial all-referenced state.
          */
         ClockReferenceSequenceCase{
             "RepeatedReferenceBeforeFirstSelection",
