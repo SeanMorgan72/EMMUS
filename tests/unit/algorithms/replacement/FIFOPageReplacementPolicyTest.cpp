@@ -968,19 +968,19 @@ TEST_F(
 
 TEST_F(
     FIFOPageReplacementPolicyTest,
-    FIFODoesNotRecordDirtyEvictions
+    RecordsDirtyEvictionWhenNotified
 )
 {
-    policy_.pageLoaded(kPage0, kFrame0);
-
-    ASSERT_EQ(
-        policy_.chooseVictim(),
-        kFrame0
-    );
-
     EXPECT_EQ(
         policy_.statistics().dirtyEvictionCount(),
         0U
+    );
+
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
     );
 }
 
