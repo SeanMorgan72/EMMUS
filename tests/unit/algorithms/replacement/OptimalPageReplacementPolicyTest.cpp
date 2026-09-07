@@ -865,23 +865,19 @@ TEST_F(
 
 TEST_F(
     OptimalPageReplacementPolicyTest,
-    OptimalDoesNotRecordDirtyEvictions
+    RecordsDirtyEvictionWhenNotified
 )
 {
-    policy_.pageLoaded(
-        kPage0,
-        kFrame0
-    );
-
-    policy_.setReferenceSequence({});
-
-    ASSERT_TRUE(
-        policy_.chooseVictim().has_value()
-    );
-
     EXPECT_EQ(
         policy_.statistics().dirtyEvictionCount(),
         0U
+    );
+
+    policy_.recordDirtyEviction();
+
+    EXPECT_EQ(
+        policy_.statistics().dirtyEvictionCount(),
+        1U
     );
 }
 
