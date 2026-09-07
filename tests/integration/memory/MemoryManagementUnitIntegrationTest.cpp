@@ -658,6 +658,11 @@ TEST_F(
         1U
     );
 
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
+        0U
+    );
+
     const Page* evictedPage = mmu->page(kPage0);
 
     ASSERT_NE(evictedPage, nullptr);
@@ -763,6 +768,11 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
         1U
     );
 
@@ -1383,7 +1393,7 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.statistics().dirtyEvictionCount(),
-        0U
+        1U
     );
 
     const Page* evictedPage = mmu->page(kPage0);
@@ -1887,7 +1897,7 @@ TEST_F(
 
     EXPECT_EQ(
         replacementPolicy.statistics().dirtyEvictionCount(),
-        0U
+        1U
     );
 
     const Page* evictedPage = mmu->page(kPage0);
@@ -1995,6 +2005,23 @@ protected:
                     + offset
             },
             MemoryAccessOperation::Read,
+            AccessSequenceNumber{sequence}
+        );
+    }
+
+    MemoryAccess write(
+        PageId pageId,
+        std::uint64_t offset = 0,
+        std::uint64_t sequence = 0
+    ) const
+    {
+        return MemoryAccess(
+            kProcess1,
+            VirtualAddress{
+                static_cast<std::uint64_t>(pageId.value()) * kPageSize
+                    + offset
+            },
+            MemoryAccessOperation::Write,
             AccessSequenceNumber{sequence}
         );
     }
@@ -2427,6 +2454,144 @@ TEST_F(
 }
 
 
+TEST_F(
+    MemoryManagementUnitOptimalIntegrationTest,
+    DirtyOptimalReplacementReportsDirtyEviction
+)
+{
+    registerPage(kPage0);
+    registerPage(kPage1);
+    registerPage(kPage2);
+
+    /*
+     * The reference sequence makes Page 1 the Optimal victim when Page 2
+     * faults:
+     *
+     *   0, 1, 2, 0, 1
+     *
+     * Page 0 is next used at index 3, while Page 1 is next used at index 4.
+     * Therefore Page 1 is selected as the farthest-future victim.
+     *
+     * Page 1 is deliberately made dirty so the MMU must report a dirty
+     * eviction and notify the replacement policy statistics.
+     */
+    replacementPolicy.setReferenceSequence({
+        kPage0,
+        kPage1,
+        kPage2,
+        kPage0,
+        kPage1
+    });
+
+    const auto first = mmu->access(
+        read(kPage0, 0, 1)
+    );
+
+    ASSERT_TRUE(first.success());
+    ASSERT_TRUE(first.pageFault());
+    ASSERT_FALSE(first.pageReplacement());
+
+    const auto dirtyAccess = mmu->access(
+        write(kPage1, 0, 2)
+    );
+
+    ASSERT_TRUE(dirtyAccess.success());
+    EXPECT_TRUE(dirtyAccess.pageFault());
+    EXPECT_FALSE(dirtyAccess.pageReplacement());
+
+    const Page* dirtyPage = mmu->page(kPage1);
+
+    ASSERT_NE(dirtyPage, nullptr);
+    EXPECT_TRUE(dirtyPage->isResident());
+    EXPECT_TRUE(dirtyPage->isDirty());
+
+    const auto third = mmu->access(
+        read(kPage2, 0, 3)
+    );
+
+    ASSERT_TRUE(third.success());
+    EXPECT_TRUE(third.pageFault());
+    EXPECT_TRUE(third.pageReplacement());
+    EXPECT_TRUE(third.dirtyEviction());
+
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        3U
+    );
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        mmu->dirtyEvictionCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().replacementCount(),
+        1U
+    );
+
+    EXPECT_EQ(
+        replacementPolicy.statistics().dirtyEvictionCount(),
+        1U
+    );
+
+    const Page* evictedPage = mmu->page(kPage1);
+    const Page* page0 = mmu->page(kPage0);
+    const Page* page2 = mmu->page(kPage2);
+
+    ASSERT_NE(evictedPage, nullptr);
+    ASSERT_NE(page0, nullptr);
+    ASSERT_NE(page2, nullptr);
+
+    EXPECT_FALSE(evictedPage->isResident());
+    EXPECT_FALSE(evictedPage->isDirty());
+    EXPECT_FALSE(evictedPage->isReferenced());
+
+    EXPECT_TRUE(page0->isResident());
+    EXPECT_TRUE(page2->isResident());
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_FALSE(
+        pageTable.lookup(kPage1).has_value()
+    );
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::optional<FrameId>{kFrame0}
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage1),
+        std::nullopt
+    );
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage2),
+        std::optional<FrameId>{kFrame1}
+    );
+
+    expectIntegratedStateIsConsistent();
+}
+
+
 // ============================================================================
 // US-802: Zero Physical Frames
 // ============================================================================
@@ -2714,6 +2879,11 @@ TEST_F(
 
     ASSERT_GT(
         replacementPolicy.statistics().replacementCount(),
+        0U
+    );
+
+    ASSERT_GT(
+        replacementPolicy.statistics().dirtyEvictionCount(),
         0U
     );
 
