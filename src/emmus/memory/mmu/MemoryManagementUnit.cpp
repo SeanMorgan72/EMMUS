@@ -1,7 +1,5 @@
 #include "emmus/memory/mmu/MemoryManagementUnit.hpp"
 
-#include <optional>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -14,27 +12,28 @@ MemoryManagementUnit::MemoryManagementUnit(
     PageReplacementPolicy& replacementPolicy,
     PageSize pageSize
 ) noexcept
-    : pageTable_(pageTable)
-    , physicalMemoryManager_(physicalMemory)
-    , replacementPolicy_(replacementPolicy)
-    , pageSize_(pageSize)
+    : pageTable_(pageTable),
+      physicalMemoryManager_(physicalMemory),
+      replacementPolicy_(replacementPolicy),
+      pageSize_(pageSize)
 {
 }
 
 bool MemoryManagementUnit::registerPage(Page page)
 {
-    const PageId pageId = page.id();
-
-    // A page registered with the MMU must begin in a nonresident state.
     if (page.isResident())
     {
         return false;
     }
 
-    // Reject stale lower-level state for the same PageId. Registering a
-    // page over an existing mapping would create an ambiguous ownership
-    // relationship between the MMU's page registry and its lower layers.
-    if (pageTable_.isMapped(pageId))
+    const PageId pageId = page.id();
+
+    if (pages_.contains(pageId))
+    {
+        return false;
+    }
+
+    if (pageTable_.lookup(pageId).has_value())
     {
         return false;
     }
@@ -44,12 +43,9 @@ bool MemoryManagementUnit::registerPage(Page page)
         return false;
     }
 
-    const auto [iterator, inserted] =
-        pages_.emplace(pageId, std::move(page));
+    pages_.emplace(pageId, std::move(page));
 
-    static_cast<void>(iterator);
-
-    return inserted;
+    return true;
 }
 
 MemoryManagementUnit::AccessResult
@@ -58,145 +54,141 @@ MemoryManagementUnit::access(const Access& access)
     const auto [pageId, pageOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
-            pageSize_
-        );
+            pageSize_);
+
+    (void)pageOffset;
 
     Page* requestedPage = findPage(pageId);
 
     if (requestedPage == nullptr)
     {
         return failure(
-            "Memory access references an unregistered page."
-        );
+            "Memory access references an unregistered virtual page");
     }
 
-    // Process ownership is validated at the MMU boundary. The PageTable
-    // itself is intentionally concerned only with PageId -> FrameId
-    // mappings.
     if (requestedPage->processId() != access.processId())
     {
         return failure(
-            "Memory access process does not own the requested page."
-        );
+            "Memory access process does not own the requested virtual page");
     }
 
-    PageTablePhysicalMemoryIntegration integration(
+    PageTablePhysicalMemoryIntegration integration{
         pageTable_,
         physicalMemoryManager_
-    );
+    };
 
-    const auto mappedFrame = pageTable_.lookup(pageId);
+    const auto mappedFrame =
+        pageTable_.lookup(pageId);
 
     if (mappedFrame.has_value())
     {
-        // A PageTable mapping must agree with both physical memory and
-        // the Frame object before the access can be treated as resident.
         if (!integration.isMappingConsistent(pageId))
         {
             return failure(
-                "Page-table and physical-memory mappings are inconsistent."
-            );
+                "Page-table and physical-memory mapping is inconsistent");
         }
 
         if (!requestedPage->isResident())
         {
             return failure(
-                "Page-table mapping exists for a nonresident page."
-            );
+                "Page-table mapping exists for a nonresident page");
         }
 
-        if (!requestedPage->mappedFrame().has_value() ||
-            requestedPage->mappedFrame().value() != mappedFrame.value())
+        if (!requestedPage->mappedFrame().has_value())
         {
             return failure(
-                "Registered page and page-table frame mappings are inconsistent."
-            );
+                "Resident page does not have an associated frame");
+        }
+
+        if (requestedPage->mappedFrame().value() != mappedFrame.value())
+        {
+            return failure(
+                "Page frame does not match the page-table mapping");
         }
 
         return processResidentAccess(
             access,
             pageId,
-            mappedFrame.value()
-        );
+            mappedFrame.value());
     }
 
-    // A page with no PageTable mapping must also have no physical-memory
-    // mapping. Otherwise the lower layers are inconsistent and the MMU
-    // must not reinterpret that state as a normal page fault.
     if (physicalMemoryManager_.isPageMapped(pageId))
     {
         return failure(
-            "Physical memory contains an unmapped page-table entry."
-        );
+            "Physical-memory mapping exists without a page-table mapping");
     }
 
     if (requestedPage->isResident())
     {
         return failure(
-            "Registered page is resident without a page-table mapping."
-        );
+            "Page is marked resident without a page-table mapping");
     }
 
-    // At this point the page is genuinely nonresident, so this is a
-    // valid page fault.
-    return processPageFault(access, pageId);
+    return processPageFault(
+        access,
+        pageId);
 }
 
 MemoryManagementUnit::AccessResult
 MemoryManagementUnit::processResidentAccess(
     const Access& access,
     PageId pageId,
-    FrameId frameId
-)
+    FrameId frameId)
 {
-    Page* requestedPage = findPage(pageId);
+    Page* page = findPage(pageId);
 
-    if (requestedPage == nullptr)
+    if (page == nullptr)
     {
         return failure(
-            "Resident page is not registered with the MMU."
-        );
+            "Registered page could not be found");
     }
 
-    if (!requestedPage->isResident() ||
-        !requestedPage->mappedFrame().has_value() ||
-        requestedPage->mappedFrame().value() != frameId)
+    if (!page->isResident())
     {
         return failure(
-            "Resident page state does not match the requested frame."
-        );
+            "Resident access requested for a nonresident page");
     }
 
-    PageTablePhysicalMemoryIntegration integration(
+    if (!page->mappedFrame().has_value())
+    {
+        return failure(
+            "Resident page does not have an associated frame");
+    }
+
+    if (page->mappedFrame().value() != frameId)
+    {
+        return failure(
+            "Resident page frame does not match the requested frame");
+    }
+
+    PageTablePhysicalMemoryIntegration integration{
         pageTable_,
         physicalMemoryManager_
-    );
+    };
 
     if (!integration.isMappingConsistent(pageId))
     {
         return failure(
-            "Resident page mapping is inconsistent."
-        );
+            "Resident page mapping is inconsistent");
     }
 
-    // Complete the access first. This guarantees that an address
-    // translation failure does not notify the replacement policy about
-    // an access that did not actually complete.
-    AccessResult result = completeAccess(
-        access,
-        *requestedPage,
-        frameId,
-        false,
-        false,
-        false
-    );
+    const auto result =
+        completeAccess(
+            access,
+            *page,
+            frameId,
+            false,
+            false,
+            false);
 
     if (!result.success())
     {
         return result;
     }
 
-    replacementPolicy_.pageAccessed(pageId, frameId);
+    replacementPolicy_.pageAccessed(
+        pageId,
+        frameId);
 
     return result;
 }
@@ -204,481 +196,419 @@ MemoryManagementUnit::processResidentAccess(
 MemoryManagementUnit::AccessResult
 MemoryManagementUnit::processPageFault(
     const Access& access,
-    PageId pageId
-)
+    PageId pageId)
 {
     Page* requestedPage = findPage(pageId);
 
     if (requestedPage == nullptr)
     {
         return failure(
-            "Page-fault request references an unregistered page."
-        );
+            "Page-fault handling could not find the requested page");
     }
 
     if (requestedPage->isResident())
     {
         return failure(
-            "Page-fault handler received a page that is already resident."
-        );
+            "Page-fault handling requested for an already resident page");
     }
 
-    PageTablePhysicalMemoryIntegration integration(
+    PageTablePhysicalMemoryIntegration integration{
         pageTable_,
         physicalMemoryManager_
-    );
+    };
 
-    // The caller has already established that neither lower layer maps
-    // the requested page. Recheck here because this method is also a
-    // private invariant boundary.
-    if (pageTable_.isMapped(pageId) ||
-        physicalMemoryManager_.isPageMapped(pageId))
+    if (pageTable_.lookup(pageId).has_value())
     {
         return failure(
-            "Cannot handle page fault because the requested page already "
-            "has lower-level mapping state."
-        );
+            "Page-fault handling found an existing page-table mapping");
     }
 
+    if (physicalMemoryManager_.isPageMapped(pageId))
+    {
+        return failure(
+            "Page-fault handling found an existing physical-memory mapping");
+    }
+
+    /*
+     * The MMU has detected a page fault at this point.
+     *
+     * The existing test contract expects pageFaultCount() to increase
+     * even when the subsequent frame-allocation operation fails.
+     */
     ++pageFaultCount_;
 
     /*
-     * ------------------------------------------------------------------
-     * Case 1: A free physical frame is available.
-     * ------------------------------------------------------------------
+     * Prefer a free frame whenever one is available. The replacement
+     * policy must not be invoked in this case.
      */
     if (physicalMemoryManager_.hasFreeFrame())
     {
-        const auto frameId = integration.mapPage(pageId);
+        const auto frameId =
+            integration.mapPage(pageId);
 
         if (!frameId.has_value())
         {
             return failure(
-                "Page fault could not allocate a free physical frame."
-            );
+                "A free physical frame was available but could not be mapped");
         }
 
-        if (!physicalMemoryManager_.isValidFrameId(frameId.value()) ||
-            !integration.isMappingConsistent(pageId))
+        const FrameId selectedFrame = frameId.value();
+
+        if (!physicalMemoryManager_.isValidFrameId(selectedFrame))
         {
-            // The integration layer should have rolled back its own
-            // allocation on failure. If an unexpected invalid state is
-            // observed after success, attempt to remove the mapping.
-            static_cast<void>(integration.unmapPage(pageId));
+            (void)integration.releaseFrame(selectedFrame);
 
             return failure(
-                "Allocated frame does not produce a consistent page mapping."
-            );
+                "Physical-memory manager returned an invalid frame identifier");
         }
 
-        const auto pageMapResult =
-            requestedPage->mapToFrame(frameId.value());
-
-        if (pageMapResult.has_value())
+        if (!integration.isMappingConsistent(pageId))
         {
-            static_cast<void>(integration.unmapPage(pageId));
+            (void)integration.releaseFrame(selectedFrame);
 
             return failure(
-                "Requested page could not be marked resident."
-            );
+                "New page mapping is inconsistent");
         }
 
-        AccessResult result = completeAccess(
-            access,
-            *requestedPage,
-            frameId.value(),
-            true,
-            false,
-            false
-        );
+        auto framePage =
+            physicalMemoryManager_.frame(selectedFrame);
+
+        if (framePage == nullptr ||
+            !framePage->isOccupied() ||
+            !framePage->mappedPage().has_value() ||
+            framePage->mappedPage().value() != pageId)
+        {
+            (void)integration.releaseFrame(selectedFrame);
+
+            return failure(
+                "Allocated frame does not contain the requested page");
+        }
+
+        const auto mapResult =
+            requestedPage->mapToFrame(selectedFrame);
+
+        if (mapResult.has_value())
+        {
+            (void)integration.releaseFrame(selectedFrame);
+
+            return failure(
+                "Requested page could not be mapped to the allocated frame");
+        }
+
+        if (!integration.isMappingConsistent(pageId))
+        {
+            (void)requestedPage->unmapFromFrame();
+            (void)integration.releaseFrame(selectedFrame);
+
+            return failure(
+                "Page mapping became inconsistent after residency update");
+        }
+
+        const auto result =
+            completeAccess(
+                access,
+                *requestedPage,
+                selectedFrame,
+                true,
+                false,
+                false);
 
         if (!result.success())
         {
-            // Policy notification has not occurred yet, so the lower
-            // mapping can be rolled back without requiring policy state
-            // repair.
-            static_cast<void>(requestedPage->unmapFromFrame());
-            static_cast<void>(integration.unmapPage(pageId));
+            (void)requestedPage->unmapFromFrame();
+            (void)integration.releaseFrame(selectedFrame);
 
             return result;
         }
 
-        /*
-         * A successful page fault represents an actual memory access.
-         * Notify the policy both that the page became resident and that
-         * the newly loaded page was accessed.
-         *
-         * This second notification is especially important for the
-         * Optimal policy, whose reference-sequence position advances
-         * through pageAccessed(). It is also correct for LRU and Clock,
-         * while FIFO intentionally leaves its ordering unchanged.
-         */
         replacementPolicy_.pageLoaded(
             pageId,
-            frameId.value()
-        );
+            selectedFrame);
 
         replacementPolicy_.pageAccessed(
             pageId,
-            frameId.value()
-        );
+            selectedFrame);
 
         return result;
     }
 
     /*
-     * ------------------------------------------------------------------
-     * Case 2: No free frame exists. Select a replacement victim.
-     * ------------------------------------------------------------------
-     */
-    const auto victimFrame = replacementPolicy_.chooseVictim();
+    * Physical memory is full. The replacement policy must select the
+    * victim frame.
+    */
+    const auto victimFrameOptional =
+        replacementPolicy_.chooseVictim();
 
-    if (!victimFrame.has_value())
+    if (!victimFrameOptional.has_value())
     {
-        return failure(
-            "Page fault requires replacement, but the replacement policy "
-            "did not provide a victim frame."
-        );
+        return pageFaultFailure(
+            "Physical memory is full and the replacement policy could not select a victim");
     }
 
-    if (!physicalMemoryManager_.isValidFrameId(victimFrame.value()))
+    const FrameId victimFrame = victimFrameOptional.value();
+
+    if (!physicalMemoryManager_.isValidFrameId(victimFrame))
     {
         return failure(
-            "Replacement policy returned an invalid victim frame."
-        );
+            "Replacement policy returned an invalid victim frame");
     }
 
-    const auto* selectedFrame =
-        physicalMemoryManager_.frame(victimFrame.value());
+    const auto* victimPhysicalFrame =
+        physicalMemoryManager_.frame(victimFrame);
 
-    if (selectedFrame == nullptr ||
-        !selectedFrame->isOccupied() ||
-        !selectedFrame->mappedPage().has_value())
+    if (victimPhysicalFrame == nullptr ||
+        !victimPhysicalFrame->isOccupied() ||
+        !victimPhysicalFrame->mappedPage().has_value())
     {
         return failure(
-            "Replacement policy selected an invalid or free victim frame."
-        );
+            "Replacement policy selected a free or invalid victim frame");
     }
 
     const PageId victimPageId =
-        selectedFrame->mappedPage().value();
+        victimPhysicalFrame->mappedPage().value();
 
-    Page* victimPage = findPage(victimPageId);
+    Page* victimPage =
+        findPage(victimPageId);
 
     if (victimPage == nullptr)
     {
         return failure(
-            "Victim frame references a page that is not registered."
-        );
+            "Victim frame references an unregistered page");
     }
 
-    if (!victimPage->isResident() ||
-        !victimPage->mappedFrame().has_value() ||
-        victimPage->mappedFrame().value() != victimFrame.value())
+    if (!victimPage->isResident())
     {
         return failure(
-            "Victim page state does not match the selected victim frame."
-        );
+            "Victim page is not resident");
+    }
+
+    if (!victimPage->mappedFrame().has_value())
+    {
+        return failure(
+            "Victim page does not have an associated frame");
+    }
+
+    if (victimPage->mappedFrame().value() != victimFrame)
+    {
+        return failure(
+            "Victim page frame does not match the selected victim frame");
     }
 
     if (!integration.isMappingConsistent(victimPageId))
     {
         return failure(
-            "Victim page mapping is inconsistent."
-        );
+            "Victim page mapping is inconsistent");
     }
 
-    /*
-     * Capture the victim's state before Page::unmapFromFrame(), because
-     * unmapping a Page intentionally clears its dirty and referenced
-     * state.
-     *
-     * These values are required if the replacement transaction must be
-     * rolled back after the victim has been detached.
-     */
-    const bool dirtyEviction = victimPage->isDirty();
-    const bool victimReferenced = victimPage->isReferenced();
+    const bool victimWasDirty =
+        victimPage->isDirty();
+
+    const bool victimWasReferenced =
+        victimPage->isReferenced();
 
     /*
-    * A dirty victim requires simulated write-back before the page
-    * leaves physical memory. The simulator does not model a backing
-    * store, so clearing the dirty state represents the completed
-    * logical write-back.
-    *
-    * The original dirty state is retained separately so that the
-    * victim can be restored if a later replacement step fails.
-    */
-    if (dirtyEviction)
-    {
-        victimPage->clearDirty();
-    }
-    
-    /*
-     * Validate the physical address before modifying any replacement
-     * state. With no free frame available, the released victim frame is
-     * the frame that must become available for the requested page.
+     * Validate the requested virtual address and physical translation
+     * before modifying the existing victim state. This prevents a
+     * translation failure from destroying a valid resident mapping.
      */
-    const auto [requestedPageIdFromAddress, pageOffset] =
+    const auto [requestedPageId, requestedOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
-            pageSize_
-        );
+            pageSize_);
 
-    if (requestedPageIdFromAddress != pageId)
+    if (requestedPageId != pageId)
     {
         return failure(
-            "Virtual-address decomposition does not match the requested page."
-        );
+            "Virtual-address decomposition does not match the requested page");
     }
 
     try
     {
-        static_cast<void>(
-            emmus::memory::access::makePhysicalAddress(
-                victimFrame.value(),
-                pageOffset,
-                pageSize_
-            )
-        );
+        (void)emmus::memory::access::makePhysicalAddress(
+            victimFrame,
+            requestedOffset,
+            pageSize_);
     }
-    catch (const std::overflow_error&)
+    catch (const std::overflow_error& exception)
     {
-        return failure(
-            "Physical-address calculation overflowed for the replacement frame."
-        );
+        return failure(exception.what());
     }
 
     /*
-     * Helper used when a replacement operation has already removed the
-     * victim from the policy and lower-level mappings but cannot complete
-     * the requested page load.
-     *
-     * There were no free frames before the victim was removed, so after
-     * the failed requested-page mapping the victim frame is expected to
-     * be the only available frame.
-     *
-     * The victim's dirty and referenced metadata are restored after its
-     * residency is restored so a failed replacement does not alter the
-     * victim's architectural state.
+     * Dirty eviction represents the simulated write-back of the victim
+     * page before its frame is reused.
+     */
+    if (victimWasDirty)
+    {
+        victimPage->clearDirty();
+    }
+
+    /*
+     * Restore the victim if any part of the replacement transaction fails.
      */
     const auto restoreVictim =
-        [&]() noexcept -> bool
+        [&]() -> bool
+        {
+            if (victimPage->isResident())
+            {
+                return false;
+            }
+
+            if (!integration.mapPage(victimPageId).has_value())
+            {
+                return false;
+            }
+
+            const auto restoredFrame =
+                integration.frameForPage(victimPageId);
+
+            if (!restoredFrame.has_value() ||
+                restoredFrame.value() != victimFrame)
+            {
+                (void)integration.releaseFrame(victimFrame);
+                return false;
+            }
+
+            const auto restoreResult =
+                victimPage->mapToFrame(victimFrame);
+
+            if (restoreResult.has_value())
+            {
+                (void)integration.releaseFrame(victimFrame);
+                return false;
+            }
+
+            if (victimWasDirty)
+            {
+                victimPage->markDirty();
+            }
+
+            if (victimWasReferenced)
+            {
+                victimPage->markReferenced();
+            }
+
+            replacementPolicy_.pageLoaded(
+                victimPageId,
+                victimFrame);
+
+            return integration.isMappingConsistent(
+                victimPageId);
+        };
+
+    /*
+     * Remove the victim from the coordinated page-table and physical
+     * memory state.
+     */
+    if (!integration.releaseFrame(victimFrame))
     {
-        const auto restoredFrame =
-            integration.mapPage(victimPageId);
-
-        if (!restoredFrame.has_value() ||
-            restoredFrame.value() != victimFrame.value())
-        {
-            return false;
-        }
-
-        const auto mapResult =
-            victimPage->mapToFrame(restoredFrame.value());
-
-        if (mapResult.has_value())
-        {
-            static_cast<void>(
-                integration.unmapPage(victimPageId)
-            );
-
-            return false;
-        }
-
-        if (!victimPage->isResident() ||
-            !victimPage->mappedFrame().has_value() ||
-            victimPage->mappedFrame().value() != victimFrame.value())
-        {
-            static_cast<void>(
-                integration.unmapPage(victimPageId)
-            );
-
-            return false;
-        }
-
-        if (dirtyEviction)
+        if (victimWasDirty)
         {
             victimPage->markDirty();
         }
 
-        if (victimReferenced)
-        {
-            victimPage->markReferenced();
-        }
-
-        replacementPolicy_.pageLoaded(
-            victimPageId,
-            victimFrame.value()
-        );
-
-        return true;
-    };
-
-    /*
-     * Evict the victim from the coordinated lower-level mapping.
-     */
-    if (!integration.releaseFrame(victimFrame.value()))
-    {
         return failure(
-            "Failed to release the selected victim frame."
-        );
+            "Victim frame could not be released");
     }
 
-    if (victimPage->unmapFromFrame().has_value())
+    if (victimPage->isResident())
     {
-        // The lower-level mapping has already been released. Attempt to
-        // restore it so the MMU does not knowingly leave the victim
-        // detached from physical memory.
-        const bool restored = restoreVictim();
+        const auto unmapResult =
+            victimPage->unmapFromFrame();
 
-        if (!restored)
+        if (unmapResult.has_value())
         {
-            return failure(
-                "Victim frame was released, but the victim page could not "
-                "be restored after its residency transition failed."
-            );
-        }
+            /*
+             * The physical frame has already been released. Attempt to
+             * restore the victim mapping before reporting failure.
+             */
+            (void)restoreVictim();
 
-        return failure(
-            "Victim page could not be marked nonresident."
-        );
+            return failure(
+                "Victim page could not be unmapped");
+        }
     }
 
     replacementPolicy_.pageRemoved(
         victimPageId,
-        victimFrame.value()
-    );
+        victimFrame);
 
     /*
-     * Load the requested page. Because the victim was the only frame
-     * available immediately before release, mapPage() should return the
-     * same frame. Verify that invariant explicitly.
+     * Reuse the released frame for the requested page.
      */
     const auto requestedFrame =
         integration.mapPage(pageId);
 
-    if (!requestedFrame.has_value())
+    if (!requestedFrame.has_value() ||
+        requestedFrame.value() != victimFrame)
     {
-        const bool restored = restoreVictim();
-
-        if (!restored)
+        /*
+         * The frame should have been reused. If it was not, attempt to
+         * restore the victim.
+         */
+        if (requestedFrame.has_value())
         {
-            return failure(
-                "Replacement failed and the victim mapping could not be restored."
-            );
+            (void)integration.releaseFrame(requestedFrame.value());
         }
 
+        (void)restoreVictim();
+
         return failure(
-            "Replacement failed because the requested page could not be mapped."
-        );
+            "Requested page could not be mapped into the victim frame");
     }
 
-    if (requestedFrame.value() != victimFrame.value())
+    const auto requestedMapResult =
+        requestedPage->mapToFrame(victimFrame);
+
+    if (requestedMapResult.has_value())
     {
-        static_cast<void>(
-            integration.unmapPage(pageId)
-        );
-
-        const bool restored = restoreVictim();
-
-        if (!restored)
-        {
-            return failure(
-                "Replacement selected an unexpected frame and the victim "
-                "mapping could not be restored."
-            );
-        }
+        (void)integration.releaseFrame(victimFrame);
+        (void)restoreVictim();
 
         return failure(
-            "Replacement mapped the requested page to a frame different "
-            "from the released victim frame."
-        );
+            "Requested page could not be made resident");
     }
 
-    const auto pageMapResult =
-        requestedPage->mapToFrame(requestedFrame.value());
-
-    if (pageMapResult.has_value())
+    if (!integration.isMappingConsistent(pageId))
     {
-        static_cast<void>(
-            integration.unmapPage(pageId)
-        );
-
-        const bool restored = restoreVictim();
-
-        if (!restored)
-        {
-            return failure(
-                "Requested page could not become resident and the victim "
-                "mapping could not be restored."
-            );
-        }
+        (void)requestedPage->unmapFromFrame();
+        (void)integration.releaseFrame(victimFrame);
+        (void)restoreVictim();
 
         return failure(
-            "Requested page could not be marked resident after replacement."
-        );
+            "Requested page mapping is inconsistent after replacement");
     }
 
-    /*
-     * The physical-address calculation was validated before eviction, so
-     * this call should not encounter an overflow for the same frame,
-     * offset, and page-size values. completeAccess still performs its own
-     * defensive validation.
-     */
-    AccessResult result = completeAccess(
-        access,
-        *requestedPage,
-        requestedFrame.value(),
-        true,
-        true,
-        dirtyEviction
-    );
+    const auto result =
+        completeAccess(
+            access,
+            *requestedPage,
+            victimFrame,
+            true,
+            true,
+            victimWasDirty);
 
     if (!result.success())
     {
-        static_cast<void>(
-            requestedPage->unmapFromFrame()
-        );
+        (void)requestedPage->unmapFromFrame();
+        (void)integration.releaseFrame(victimFrame);
 
-        static_cast<void>(
-            integration.unmapPage(pageId)
-        );
-
-        const bool restored = restoreVictim();
-
-        if (!restored)
-        {
-            return failure(
-                "Replacement access failed and the victim mapping could "
-                "not be restored."
-            );
-        }
+        (void)restoreVictim();
 
         return result;
     }
 
-    /*
-     * The replacement has now completed successfully. Only now should
-     * the policy and MMU replacement statistics be updated.
-     *
-     * pageAccessed() is also required here because the requested page
-     * represents the access that caused the page fault. In particular,
-     * Optimal uses this notification to advance its reference-sequence
-     * position.
-     */
     replacementPolicy_.pageLoaded(
         pageId,
-        requestedFrame.value()
-    );
+        victimFrame);
 
     replacementPolicy_.pageAccessed(
         pageId,
-        requestedFrame.value()
-    );
+        victimFrame);
 
     ++pageReplacementCount_;
 
-    if (dirtyEviction)
+    if (victimWasDirty)
     {
         ++dirtyEvictionCount_;
 
@@ -695,35 +625,35 @@ MemoryManagementUnit::completeAccess(
     FrameId frameId,
     bool pageFault,
     bool pageReplacement,
-    bool dirtyEviction
-)
+    bool dirtyEviction)
 {
     if (!page.isResident())
     {
         return failure(
-            "Cannot complete an access for a nonresident page."
-        );
+            "Cannot complete an access for a nonresident page");
     }
 
-    if (!page.mappedFrame().has_value() ||
-        page.mappedFrame().value() != frameId)
+    if (!page.mappedFrame().has_value())
     {
         return failure(
-            "Page residency does not match the supplied frame."
-        );
+            "Cannot complete an access for a page without a frame");
+    }
+
+    if (page.mappedFrame().value() != frameId)
+    {
+        return failure(
+            "Page frame does not match the requested frame");
     }
 
     const auto [pageId, pageOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
-            pageSize_
-        );
+            pageSize_);
 
-    if (page.id() != pageId)
+    if (pageId != page.id())
     {
         return failure(
-            "Access virtual address does not identify the supplied page."
-        );
+            "Virtual-address decomposition does not match the resident page");
     }
 
     PhysicalAddress physicalAddress{0};
@@ -734,19 +664,16 @@ MemoryManagementUnit::completeAccess(
             emmus::memory::access::makePhysicalAddress(
                 frameId,
                 pageOffset,
-                pageSize_
-            );
+                pageSize_);
     }
-    catch (const std::overflow_error&)
+    catch (const std::overflow_error& exception)
     {
-        return failure(
-            "Physical-address calculation overflowed."
-        );
+        return failure(exception.what());
     }
 
     /*
-     * Translation succeeded, so it is now safe to update the page's
-     * reference/dirty state.
+     * Only modify page state after physical-address calculation has
+     * succeeded.
      */
     page.markReferenced();
 
@@ -755,20 +682,21 @@ MemoryManagementUnit::completeAccess(
         page.markDirty();
     }
 
-    return AccessResult(
+    return AccessResult{
         true,
         pageFault,
         pageReplacement,
-        std::optional<FrameId>{frameId},
-        std::optional<PhysicalAddress>{physicalAddress},
+        frameId,
+        physicalAddress,
         dirtyEviction
-    );
+    };
 }
 
 MemoryManagementUnit::Page*
 MemoryManagementUnit::findPage(PageId pageId) noexcept
 {
-    const auto iterator = pages_.find(pageId);
+    const auto iterator =
+        pages_.find(pageId);
 
     if (iterator == pages_.end())
     {
@@ -781,7 +709,8 @@ MemoryManagementUnit::findPage(PageId pageId) noexcept
 const MemoryManagementUnit::Page*
 MemoryManagementUnit::findPage(PageId pageId) const noexcept
 {
-    const auto iterator = pages_.find(pageId);
+    const auto iterator =
+        pages_.find(pageId);
 
     if (iterator == pages_.end())
     {
@@ -791,17 +720,44 @@ MemoryManagementUnit::findPage(PageId pageId) const noexcept
     return &iterator->second;
 }
 
+MemoryManagementUnit::AccessResult
+MemoryManagementUnit::failure(std::string errorInformation)
+{
+    return AccessResult{
+        false,
+        false,
+        false,
+        std::nullopt,
+        std::nullopt,
+        false,
+        std::move(errorInformation)
+    };
+}
+
+MemoryManagementUnit::AccessResult
+MemoryManagementUnit::pageFaultFailure(std::string errorInformation)
+{
+    return AccessResult{
+        false,
+        true,
+        false,
+        std::nullopt,
+        std::nullopt,
+        false,
+        std::move(errorInformation)
+    };
+}
+
 void MemoryManagementUnit::reset()
 {
-    PageTablePhysicalMemoryIntegration integration(
+    PageTablePhysicalMemoryIntegration integration{
         pageTable_,
         physicalMemoryManager_
-    );
+    };
 
     /*
-     * Only remove mappings that the integration layer confirms are
-     * internally consistent. This avoids using the reset operation to
-     * conceal an existing lower-level invariant violation.
+     * Clear every successfully resident page. The integration layer is
+     * used so that page-table and physical-memory state remain coordinated.
      */
     for (auto& [pageId, page] : pages_)
     {
@@ -820,10 +776,12 @@ void MemoryManagementUnit::reset()
             continue;
         }
 
-        if (integration.unmapPage(pageId))
+        if (!integration.releaseFrame(page.mappedFrame().value()))
         {
-            static_cast<void>(page.unmapFromFrame());
+            continue;
         }
+
+        (void)page.unmapFromFrame();
     }
 
     replacementPolicy_.reset();
@@ -909,20 +867,6 @@ const MemoryManagementUnit::PageReplacementPolicy&
 MemoryManagementUnit::replacementPolicy() const noexcept
 {
     return replacementPolicy_;
-}
-
-MemoryManagementUnit::AccessResult
-MemoryManagementUnit::failure(std::string errorInformation)
-{
-    return AccessResult(
-        false,
-        false,
-        false,
-        std::nullopt,
-        std::nullopt,
-        false,
-        std::move(errorInformation)
-    );
 }
 
 } // namespace emmus::memory::mmu
