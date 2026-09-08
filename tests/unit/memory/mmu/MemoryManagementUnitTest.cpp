@@ -264,6 +264,401 @@ TEST_F(
 }
 
 
+/**
+ * @brief US-902: A valid registered page with no resident mapping is
+ * identified as a page fault rather than an invalid access.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    ValidNonresidentPageIsDetectedAsPageFault)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    const auto result =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                128,
+                1));
+
+    EXPECT_TRUE(
+        result.success());
+
+    EXPECT_TRUE(
+        result.pageFault());
+
+    EXPECT_FALSE(
+        result.pageReplacement());
+
+    EXPECT_FALSE(
+        result.dirtyEviction());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        1U);
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        0U);
+
+    EXPECT_EQ(
+        mmu->dirtyEvictionCount(),
+        0U);
+
+    EXPECT_EQ(
+        result.frameId(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        result.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{128}});
+}
+
+
+/**
+ * @brief US-902: Once a fault has been resolved, the same page is
+ * resident and the following access must not generate another fault.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    ResolvedPageFaultMakesPageResidentForSubsequentAccess)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    const auto first =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                100,
+                1));
+
+    ASSERT_TRUE(
+        first.success());
+
+    EXPECT_TRUE(
+        first.pageFault());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        1U);
+
+    const auto second =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                200,
+                2));
+
+    EXPECT_TRUE(
+        second.success());
+
+    EXPECT_FALSE(
+        second.pageFault());
+
+    EXPECT_FALSE(
+        second.pageReplacement());
+
+    EXPECT_FALSE(
+        second.dirtyEviction());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        1U);
+
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        second.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{200}});
+}
+
+
+/**
+ * @brief US-902: A faulting read preserves the read operation semantics.
+ * The resolved page is referenced but remains clean.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    FaultingReadPreservesReadSemantics)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    const auto result =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                321,
+                1));
+
+    ASSERT_TRUE(
+        result.success());
+
+    EXPECT_TRUE(
+        result.pageFault());
+
+    EXPECT_FALSE(
+        result.pageReplacement());
+
+    EXPECT_FALSE(
+        result.dirtyEviction());
+
+    const Page* page =
+        mmu->page(kPage0);
+
+    ASSERT_NE(
+        page,
+        nullptr);
+
+    EXPECT_TRUE(
+        page->isResident());
+
+    EXPECT_TRUE(
+        page->isReferenced());
+
+    EXPECT_FALSE(
+        page->isDirty());
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.size(),
+        1U);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.size(),
+        1U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0);
+}
+
+
+/**
+ * @brief US-902: A faulting write preserves the write operation semantics.
+ * The resolved page is referenced and marked dirty.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    FaultingWritePreservesWriteSemantics)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    const auto result =
+        mmu->access(
+            write(
+                kProcess1,
+                kPage0,
+                654,
+                1));
+
+    ASSERT_TRUE(
+        result.success());
+
+    EXPECT_TRUE(
+        result.pageFault());
+
+    EXPECT_FALSE(
+        result.pageReplacement());
+
+    EXPECT_FALSE(
+        result.dirtyEviction());
+
+    const Page* page =
+        mmu->page(kPage0);
+
+    ASSERT_NE(
+        page,
+        nullptr);
+
+    EXPECT_TRUE(
+        page->isResident());
+
+    EXPECT_TRUE(
+        page->isReferenced());
+
+    EXPECT_TRUE(
+        page->isDirty());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        1U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents.size(),
+        1U);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents.size(),
+        1U);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].pageId,
+        kPage0);
+
+    EXPECT_EQ(
+        replacementPolicy.loadedEvents[0].frameId,
+        kFrame0);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].pageId,
+        kPage0);
+
+    EXPECT_EQ(
+        replacementPolicy.accessedEvents[0].frameId,
+        kFrame0);
+}
+
+
+/**
+ * @brief US-902: The page-fault path must handle accesses at the beginning
+ * and end of a virtual page and at the beginning and end of the next page.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    PageBoundaryAddressesResolveThroughPageFaultPath)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage1, kProcess1}));
+
+    const auto first =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                0,
+                1));
+
+    ASSERT_TRUE(
+        first.success());
+
+    EXPECT_TRUE(
+        first.pageFault());
+
+    EXPECT_EQ(
+        first.frameId(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        first.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{0}});
+
+    const auto second =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                kPageSize - 1,
+                2));
+
+    ASSERT_TRUE(
+        second.success());
+
+    EXPECT_FALSE(
+        second.pageFault());
+
+    EXPECT_EQ(
+        second.frameId(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        second.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{
+                kPageSize - 1}});
+
+    const auto third =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage1,
+                0,
+                3));
+
+    ASSERT_TRUE(
+        third.success());
+
+    EXPECT_TRUE(
+        third.pageFault());
+
+    EXPECT_EQ(
+        third.frameId(),
+        std::optional<FrameId>{kFrame1});
+
+    EXPECT_EQ(
+        third.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{
+                kPageSize}});
+
+    const auto fourth =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage1,
+                kPageSize - 1,
+                4));
+
+    ASSERT_TRUE(
+        fourth.success());
+
+    EXPECT_FALSE(
+        fourth.pageFault());
+
+    EXPECT_EQ(
+        fourth.frameId(),
+        std::optional<FrameId>{kFrame1});
+
+    EXPECT_EQ(
+        fourth.physicalAddress(),
+        std::optional<
+            emmus::memory::access::PhysicalAddress>{
+            emmus::memory::access::PhysicalAddress{
+                2 * kPageSize - 1}});
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        2U);
+}
+
+
 TEST_F(
     MemoryManagementUnitTest,
     RejectsDuplicatePageRegistration)
@@ -480,7 +875,7 @@ TEST_F(
                 kPage0,
                 10,
                 1))
-            .success());
+        .success());
 
     ASSERT_EQ(
         replacementPolicy.loadedEvents.size(),
@@ -1020,6 +1415,164 @@ TEST_F(
 }
 
 
+/**
+ * @brief US-902: After a page has been evicted, accessing it again must
+ * be recognized as a new page fault and successfully resolve the access.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    AccessToPreviouslyEvictedPageCausesNewPageFault)
+{
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage1, kProcess1}));
+
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage2, kProcess1}));
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                10,
+                1))
+        .success());
+
+    ASSERT_TRUE(
+        mmu->access(
+            read(
+                kProcess1,
+                kPage1,
+                20,
+                2))
+        .success());
+
+    replacementPolicy.nextVictim =
+        kFrame0;
+
+    const auto evictPage0 =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage2,
+                30,
+                3));
+
+    ASSERT_TRUE(
+        evictPage0.success());
+
+    EXPECT_TRUE(
+        evictPage0.pageFault());
+
+    EXPECT_TRUE(
+        evictPage0.pageReplacement());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        3U);
+
+    const Page* page0AfterEviction =
+        mmu->page(kPage0);
+
+    ASSERT_NE(
+        page0AfterEviction,
+        nullptr);
+
+    EXPECT_FALSE(
+        page0AfterEviction->isResident());
+
+    EXPECT_FALSE(
+        pageTable.isMapped(kPage0));
+
+    EXPECT_FALSE(
+        physicalMemory.frameForPage(kPage0).has_value());
+
+    const auto reloadPage0 =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                40,
+                4));
+
+    ASSERT_TRUE(
+        reloadPage0.success());
+
+    EXPECT_TRUE(
+        reloadPage0.pageFault());
+
+    EXPECT_TRUE(
+        reloadPage0.pageReplacement());
+
+    EXPECT_EQ(
+        reloadPage0.frameId(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        4U);
+
+    EXPECT_EQ(
+        mmu->pageReplacementCount(),
+        2U);
+
+    const Page* page0AfterReload =
+        mmu->page(kPage0);
+
+    ASSERT_NE(
+        page0AfterReload,
+        nullptr);
+
+    EXPECT_TRUE(
+        page0AfterReload->isResident());
+
+    EXPECT_TRUE(
+        page0AfterReload->isReferenced());
+
+    EXPECT_FALSE(
+        page0AfterReload->isDirty());
+
+    EXPECT_EQ(
+        page0AfterReload->mappedFrame(),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        pageTable.lookup(kPage0),
+        std::optional<FrameId>{kFrame0});
+
+    EXPECT_EQ(
+        physicalMemory.frameForPage(kPage0),
+        std::optional<FrameId>{kFrame0});
+
+    const auto residentAccess =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                50,
+                5));
+
+    ASSERT_TRUE(
+        residentAccess.success());
+
+    EXPECT_FALSE(
+        residentAccess.pageFault());
+
+    EXPECT_FALSE(
+        residentAccess.pageReplacement());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        4U);
+}
+
+
 TEST_F(
     MemoryManagementUnitTest,
     ReplacementNotifiesPolicyInRemovalLoadAccessOrder)
@@ -1246,6 +1799,70 @@ TEST_F(
     EXPECT_EQ(
         replacementPolicy.accessedEvents.back().frameId,
         kFrame0);
+}
+
+
+/**
+ * @brief US-902: Invalid/unregistered accesses are not page faults.
+ */
+TEST_F(
+    MemoryManagementUnitTest,
+    InvalidAccessIsDistinctFromValidNonresidentPageFault)
+{
+    const auto invalid =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                0,
+                1));
+
+    EXPECT_FALSE(
+        invalid.success());
+
+    EXPECT_FALSE(
+        invalid.pageFault());
+
+    EXPECT_FALSE(
+        invalid.pageReplacement());
+
+    EXPECT_FALSE(
+        invalid.dirtyEviction());
+
+    EXPECT_FALSE(
+        invalid.frameId().has_value());
+
+    EXPECT_FALSE(
+        invalid.physicalAddress().has_value());
+
+    EXPECT_FALSE(
+        invalid.errorInformation().empty());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        0U);
+
+    ASSERT_TRUE(
+        mmu->registerPage(
+            Page{kPage0, kProcess1}));
+
+    const auto validNonresident =
+        mmu->access(
+            read(
+                kProcess1,
+                kPage0,
+                0,
+                2));
+
+    EXPECT_TRUE(
+        validNonresident.success());
+
+    EXPECT_TRUE(
+        validNonresident.pageFault());
+
+    EXPECT_EQ(
+        mmu->pageFaultCount(),
+        1U);
 }
 
 
@@ -1806,66 +2423,46 @@ TEST(
 
     FIFOPageReplacementPolicy replacementPolicy;
 
-    MemoryManagementUnit mmu(
-        pageTable,
-        physicalMemoryManager,
-        replacementPolicy,
-        PageSize{4096});
+    MemoryManagementUnit mmu(pageTable, physicalMemoryManager, replacementPolicy, PageSize{4096});
 
-    const auto registrationResult =
-        mmu.registerPage(
-            Page{
-                PageId{0},
-                ProcessId{100}});
+    const auto registrationResult = mmu.registerPage(Page{PageId{0}, ProcessId{100}});
 
-    ASSERT_TRUE(
-        registrationResult);
+    ASSERT_TRUE(registrationResult);
 
-    const auto result =
-        mmu.access(
-            MemoryAccess{
-                ProcessId{100},
-                VirtualAddress{0},
-                MemoryAccessOperation::Read,
-                AccessSequenceNumber{1}});
+    const auto result = mmu.access
+        (MemoryAccess
+            {ProcessId{100}, VirtualAddress{0}, MemoryAccessOperation::Read, AccessSequenceNumber{1}}
+        );
 
-    EXPECT_FALSE(
-        result.success());
+    EXPECT_FALSE(result.success());
 
-    EXPECT_EQ(
-        mmu.pageFaultCount(),
-        1U);
+    EXPECT_EQ(mmu.pageFaultCount(), 1U);
 
-    EXPECT_EQ(
-        mmu.pageReplacementCount(),
-        0U);
+    EXPECT_EQ(mmu.pageReplacementCount(), 0U);
 
-    EXPECT_EQ(
-        mmu.dirtyEvictionCount(),
-        0U);
+    EXPECT_EQ(mmu.dirtyEvictionCount(), 0U);
 
-    EXPECT_EQ(
-        physicalMemoryManager.capacity(),
-        0U);
+    EXPECT_TRUE(result.pageFault());
 
-    EXPECT_EQ(
-        physicalMemoryManager.freeFrameCount(),
-        0U);
+    EXPECT_FALSE(result.pageReplacement());
 
-    EXPECT_EQ(
-        physicalMemoryManager.allocatedFrameCount(),
-        0U);
+    EXPECT_FALSE(result.frameId().has_value());
 
-    EXPECT_TRUE(
-        pageTable.empty());
+    EXPECT_FALSE(result.physicalAddress().has_value());
 
-    EXPECT_EQ(
-        replacementPolicy.statistics().replacementCount(),
-        0U);
+    EXPECT_FALSE(result.errorInformation().empty());
 
-    EXPECT_EQ(
-        replacementPolicy.statistics().dirtyEvictionCount(),
-        0U);
+    EXPECT_EQ(physicalMemoryManager.capacity(), 0U);
+
+    EXPECT_EQ(physicalMemoryManager.freeFrameCount(), 0U);
+
+    EXPECT_EQ(physicalMemoryManager.allocatedFrameCount(), 0U);
+
+    EXPECT_TRUE(pageTable.empty());
+
+    EXPECT_EQ(replacementPolicy.statistics().replacementCount(), 0U);
+
+    EXPECT_EQ(replacementPolicy.statistics().dirtyEvictionCount(), 0U);
 }
 
 } // namespace
