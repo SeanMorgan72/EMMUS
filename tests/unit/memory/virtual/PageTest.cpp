@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "emmus/memory/identifiers/MemoryObjectIds.hpp"
-#include "emmus/memory/virtual/Page.hpp"
+#include "emmus/memory/virtual_memory/Page.hpp"
 
 namespace
 {
