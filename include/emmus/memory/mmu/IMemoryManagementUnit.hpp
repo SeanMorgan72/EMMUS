@@ -4,7 +4,7 @@
 
 #include "emmus/memory/access/MemoryAccess.hpp"
 #include "emmus/memory/access/MemoryAccessResult.hpp"
-#include "emmus/memory/virtual/Page.hpp"
+#include "emmus/memory/virtual_memory/Page.hpp"
 
 namespace emmus::memory::mmu
 {
