@@ -12,7 +12,7 @@
 #include "emmus/memory/mmu/PageTable.hpp"
 #include "emmus/memory/mmu/PageTablePhysicalMemoryIntegration.hpp"
 #include "emmus/memory/physical/PhysicalMemoryManager.hpp"
-#include "emmus/memory/virtual/Page.hpp"
+#include "emmus/memory/virtual_memory/Page.hpp"
 
 namespace emmus::memory::mmu
 {
