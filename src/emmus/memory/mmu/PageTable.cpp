@@ -77,4 +77,9 @@ bool PageTable::empty() const noexcept
     return mappings_.empty();
 }
 
+void PageTable::clear() noexcept
+{
+    mappings_.clear();
+}
+
 } // namespace emmus::memory::mmu

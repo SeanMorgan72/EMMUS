@@ -104,6 +104,11 @@ public:
     [[nodiscard]]
     bool empty() const noexcept;
 
+    /**
+    * @brief Removes all virtual-page to physical-frame mappings.
+    */
+    void clear() noexcept;
+
 private:
     std::unordered_map<PageId, FrameId> mappings_;
 };
