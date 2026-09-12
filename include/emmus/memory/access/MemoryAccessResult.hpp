@@ -66,6 +66,8 @@ public:
         return errorInformation_;
     }
 
+    [[nodiscard]] bool operator==(const MemoryAccessResult&) const = default;
+    
 private:
     bool success_;
     bool pageFault_;
