@@ -216,6 +216,13 @@ public:
         FrameId frameId
     ) noexcept;
 
+    /**
+    * @brief Releases all currently allocated physical frames.
+    *
+    * After this operation all managed frames are free and the
+    * allocated-frame count is zero.
+    */
+    void clear() noexcept;
 
 private:
 

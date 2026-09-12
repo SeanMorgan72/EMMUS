@@ -244,4 +244,17 @@ PhysicalMemoryManager::frameIndex(
     );
 }
 
+void PhysicalMemoryManager::clear() noexcept
+{
+    for (Frame& candidate : frames_)
+    {
+        if (!candidate.isOccupied())
+        {
+            continue;
+        }
+
+        static_cast<void>(releaseFrame(candidate.id()));
+    }
+}
+
 } // namespace emmus::memory::physical
