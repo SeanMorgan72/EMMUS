@@ -143,7 +143,7 @@ public:
                 "Physical memory must contain at least one frame");
         }
     }
-
+    
     [[nodiscard]] constexpr ValueType value() const noexcept {
         return value_;
     }
