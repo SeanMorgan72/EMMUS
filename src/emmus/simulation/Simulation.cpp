@@ -1,5 +1,6 @@
 #include "emmus/simulation/Simulation.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -13,6 +14,7 @@
 #include "emmus/algorithms/replacement/OptimalPageReplacementPolicy.hpp"
 #include "emmus/infrastructure/configuration/SimulationConfigurationValidator.hpp"
 #include "emmus/simulation/workload/LocalityWorkload.hpp"
+#include "emmus/simulation/workload/MixedWorkload.hpp"
 #include "emmus/simulation/workload/MultiProcessWorkload.hpp"
 #include "emmus/simulation/workload/RandomWorkload.hpp"
 #include "emmus/simulation/workload/SequentialWorkload.hpp"
@@ -162,7 +164,9 @@ Simulation::createReplacementPolicy() {
 std::unique_ptr<workload::IWorkload>
 Simulation::createWorkload() {
 
-    std::vector<std::unique_ptr<workload::IWorkload>> workloads;
+    std::vector<
+        std::unique_ptr<workload::IWorkload>>
+        workloads;
 
     workloads.reserve(configuration_.processCount());
 
@@ -199,7 +203,8 @@ Simulation::createWorkload() {
 
         const auto processId =
             memory::identifiers::ProcessId{
-                static_cast<std::uint64_t>(processIndex + 1)};
+                static_cast<std::uint64_t>(
+                    processIndex + 1)};
 
         const std::size_t processAccessCount =
             baseAccessCount +
@@ -254,6 +259,117 @@ Simulation::createWorkload() {
                             processIndex)));
 
             break;
+
+        case infrastructure::configuration::
+            WorkloadType::Mixed: {
+
+            const auto& mixedSegments =
+                configuration_.mixedWorkloadSegments();
+
+            std::vector<
+                std::unique_ptr<workload::IWorkload>>
+                segments;
+
+            segments.reserve(mixedSegments.size());
+
+            std::size_t allocatedAccesses = 0;
+
+            for (std::size_t segmentIndex = 0;
+                 segmentIndex < mixedSegments.size();
+                 ++segmentIndex) {
+
+                const auto& segment =
+                    mixedSegments[segmentIndex];
+
+                const std::size_t remainingAccesses =
+                    processAccessCount -
+                    allocatedAccesses;
+
+                if (remainingAccesses == 0) {
+                    break;
+                }
+
+                const std::size_t segmentAccessCount =
+                    std::min(
+                        segment.accessCount,
+                        remainingAccesses);
+
+                if (segmentAccessCount == 0) {
+                    continue;
+                }
+
+                const std::uint64_t seed =
+                    configuration_.randomSeed() +
+                    static_cast<std::uint64_t>(
+                        processIndex * 1000003ULL +
+                        segmentIndex);
+
+                switch (segment.workloadType) {
+
+                case infrastructure::configuration::
+                    WorkloadType::Sequential:
+
+                    segments.push_back(
+                        std::make_unique<
+                            workload::SequentialWorkload>(
+                            processId,
+                            configuration_.pageCountPerProcess(),
+                            configuration_.pageSize(),
+                            segmentAccessCount));
+
+                    break;
+
+                case infrastructure::configuration::
+                    WorkloadType::Random:
+
+                    segments.push_back(
+                        std::make_unique<
+                            workload::RandomWorkload>(
+                            processId,
+                            configuration_.pageCountPerProcess(),
+                            configuration_.pageSize(),
+                            segmentAccessCount,
+                            seed));
+
+                    break;
+
+                case infrastructure::configuration::
+                    WorkloadType::Locality:
+
+                    segments.push_back(
+                        std::make_unique<
+                            workload::LocalityWorkload>(
+                            processId,
+                            configuration_.pageCountPerProcess(),
+                            configuration_.pageSize(),
+                            segmentAccessCount,
+                            configuration_.
+                                temporalLocalityStrength(),
+                            configuration_.
+                                spatialLocalityStrength(),
+                            configuration_.workingSetSize(),
+                            seed));
+
+                    break;
+
+                case infrastructure::configuration::
+                    WorkloadType::Mixed:
+
+                    throw std::logic_error(
+                        "Nested mixed workloads are not supported.");
+                }
+
+                allocatedAccesses +=
+                    segmentAccessCount;
+            }
+
+            workloads.push_back(
+                std::make_unique<
+                    workload::MixedWorkload>(
+                    std::move(segments)));
+
+            break;
+        }
 
         default:
 
