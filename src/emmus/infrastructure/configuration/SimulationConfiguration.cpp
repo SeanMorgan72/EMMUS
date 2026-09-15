@@ -1,5 +1,7 @@
 #include "emmus/infrastructure/configuration/SimulationConfiguration.hpp"
 
+#include <utility>
+
 namespace emmus::infrastructure::configuration {
 
 SimulationConfiguration::SimulationConfiguration(
@@ -105,4 +107,15 @@ SimulationConfiguration::workingSetSize() const noexcept {
     return workingSetSize_;
 }
 
+const std::vector<MixedWorkloadSegmentConfiguration>&
+SimulationConfiguration::mixedWorkloadSegments() const noexcept
+{
+    return mixedWorkloadSegments_;
+}
+
+void SimulationConfiguration::setMixedWorkloadSegments(
+    std::vector<MixedWorkloadSegmentConfiguration> segments)
+{
+    mixedWorkloadSegments_ = std::move(segments);
+}
 } // namespace emmus::infrastructure::configuration

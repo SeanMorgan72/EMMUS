@@ -11,7 +11,13 @@ namespace emmus::infrastructure::configuration {
 enum class WorkloadType : std::uint8_t {
     Sequential,
     Random,
-    Locality
+    Locality,
+    Mixed
+};
+
+struct MixedWorkloadSegmentConfiguration {
+    WorkloadType workloadType;
+    std::size_t accessCount;
 };
 
 class SimulationConfiguration final {
@@ -63,6 +69,12 @@ public:
 
     [[nodiscard]] std::size_t workingSetSize() const noexcept;
 
+    [[nodiscard]] const std::vector<MixedWorkloadSegmentConfiguration>&
+    mixedWorkloadSegments() const noexcept;
+
+    void setMixedWorkloadSegments(
+        std::vector<MixedWorkloadSegmentConfiguration> segments);
+
 private:
     memory::access::PageSize pageSize_;
     memory::access::FrameCount frameCount_;
@@ -79,6 +91,7 @@ private:
     double temporalLocalityStrength_;
     double spatialLocalityStrength_;
     std::size_t workingSetSize_;
+    std::vector<MixedWorkloadSegmentConfiguration> mixedWorkloadSegments_;
 };
 
 } // namespace emmus::infrastructure::configuration
