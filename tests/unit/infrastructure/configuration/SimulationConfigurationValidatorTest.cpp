@@ -174,3 +174,138 @@ TEST(SimulationConfigurationValidatorTest, AcceptsAllSupportedReplacementPolicie
             SimulationConfigurationValidator::isValid(configuration));
     }
 }
+
+TEST(
+    SimulationConfigurationValidatorTest,
+    AcceptsValidLocalityConfiguration) {
+
+    const SimulationConfiguration configuration(
+        PageSize{4096U},
+        FrameCount{8U},
+        2U,
+        32U,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Locality,
+        1000U,
+        12345U,
+        0.75,
+        0.50,
+        8U);
+
+    EXPECT_TRUE(
+        SimulationConfigurationValidator::isValid(
+            configuration));
+}
+
+TEST(
+    SimulationConfigurationValidatorTest,
+    RejectsInvalidTemporalLocalityStrength) {
+
+    const SimulationConfiguration configuration(
+        PageSize{4096U},
+        FrameCount{8U},
+        1U,
+        32U,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Locality,
+        100U,
+        12345U,
+        1.1,
+        0.5,
+        8U);
+
+    const auto errors =
+        SimulationConfigurationValidator::validate(
+            configuration);
+
+    ASSERT_FALSE(errors.empty());
+
+    EXPECT_EQ(
+        errors.front(),
+        "Temporal locality strength must be between zero and one.");
+}
+
+TEST(
+    SimulationConfigurationValidatorTest,
+    RejectsInvalidSpatialLocalityStrength) {
+
+    const SimulationConfiguration configuration(
+        PageSize{4096U},
+        FrameCount{8U},
+        1U,
+        32U,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Locality,
+        100U,
+        12345U,
+        0.5,
+        1.1,
+        8U);
+
+    const auto errors =
+        SimulationConfigurationValidator::validate(
+            configuration);
+
+    ASSERT_FALSE(errors.empty());
+
+    EXPECT_EQ(
+        errors.front(),
+        "Spatial locality strength must be between zero and one.");
+}
+
+TEST(
+    SimulationConfigurationValidatorTest,
+    RejectsZeroLocalityWorkingSetSize) {
+
+    const SimulationConfiguration configuration(
+        PageSize{4096U},
+        FrameCount{8U},
+        1U,
+        32U,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Locality,
+        100U,
+        12345U,
+        0.5,
+        0.5,
+        0U);
+
+    const auto errors =
+        SimulationConfigurationValidator::validate(
+            configuration);
+
+    ASSERT_FALSE(errors.empty());
+
+    EXPECT_EQ(
+        errors.front(),
+        "Locality working-set size must be greater than zero.");
+}
+
+TEST(
+    SimulationConfigurationValidatorTest,
+    RejectsLocalityWorkingSetLargerThanPageCount) {
+
+    const SimulationConfiguration configuration(
+        PageSize{4096U},
+        FrameCount{8U},
+        1U,
+        32U,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Locality,
+        100U,
+        12345U,
+        0.5,
+        0.5,
+        33U);
+
+    const auto errors =
+        SimulationConfigurationValidator::validate(
+            configuration);
+
+    ASSERT_FALSE(errors.empty());
+
+    EXPECT_EQ(
+        errors.front(),
+        "Locality working-set size must not exceed "
+        "page count per process.");
+}
