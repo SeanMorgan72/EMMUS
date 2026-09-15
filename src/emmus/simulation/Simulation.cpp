@@ -12,6 +12,7 @@
 #include "emmus/algorithms/replacement/LRUPageReplacementPolicy.hpp"
 #include "emmus/algorithms/replacement/OptimalPageReplacementPolicy.hpp"
 #include "emmus/infrastructure/configuration/SimulationConfigurationValidator.hpp"
+#include "emmus/simulation/workload/LocalityWorkload.hpp"
 #include "emmus/simulation/workload/MultiProcessWorkload.hpp"
 #include "emmus/simulation/workload/RandomWorkload.hpp"
 #include "emmus/simulation/workload/SequentialWorkload.hpp"
@@ -50,21 +51,25 @@ void Simulation::initialize() {
     replacementPolicyFactory_.clear();
 
     if (!replacementPolicyFactory_.registerPolicy(
-        PolicyType::FIFO,
-        [] {
-            return std::make_unique<
-                algorithms::replacement::FIFOPageReplacementPolicy>();
-        })) {
-    throw std::runtime_error(
-        "Failed to register FIFO page replacement policy.");
+            PolicyType::FIFO,
+            [] {
+                return std::make_unique<
+                    algorithms::replacement::
+                        FIFOPageReplacementPolicy>();
+            })) {
+
+        throw std::runtime_error(
+            "Failed to register FIFO page replacement policy.");
     }
 
     if (!replacementPolicyFactory_.registerPolicy(
             PolicyType::LRU,
             [] {
                 return std::make_unique<
-                    algorithms::replacement::LRUPageReplacementPolicy>();
+                    algorithms::replacement::
+                        LRUPageReplacementPolicy>();
             })) {
+
         throw std::runtime_error(
             "Failed to register LRU page replacement policy.");
     }
@@ -73,8 +78,10 @@ void Simulation::initialize() {
             PolicyType::CLOCK,
             [] {
                 return std::make_unique<
-                    algorithms::replacement::ClockPageReplacementPolicy>();
+                    algorithms::replacement::
+                        ClockPageReplacementPolicy>();
             })) {
+
         throw std::runtime_error(
             "Failed to register Clock page replacement policy.");
     }
@@ -83,8 +90,10 @@ void Simulation::initialize() {
             PolicyType::OPTIMAL,
             [] {
                 return std::make_unique<
-                    algorithms::replacement::OptimalPageReplacementPolicy>();
+                    algorithms::replacement::
+                        OptimalPageReplacementPolicy>();
             })) {
+
         throw std::runtime_error(
             "Failed to register Optimal page replacement policy.");
     }
@@ -96,7 +105,8 @@ void Simulation::initialize() {
             "Unable to create configured page replacement policy.");
     }
 
-    mmu_ = std::make_unique<memory::mmu::MemoryManagementUnit>(
+    mmu_ = std::make_unique<
+        memory::mmu::MemoryManagementUnit>(
         pageTable_,
         physicalMemoryManager_,
         *replacementPolicy_,
@@ -201,7 +211,8 @@ Simulation::createWorkload() {
             WorkloadType::Sequential:
 
             workloads.push_back(
-                std::make_unique<workload::SequentialWorkload>(
+                std::make_unique<
+                    workload::SequentialWorkload>(
                     processId,
                     configuration_.pageCountPerProcess(),
                     configuration_.pageSize(),
@@ -213,33 +224,56 @@ Simulation::createWorkload() {
             WorkloadType::Random:
 
             workloads.push_back(
-                std::make_unique<workload::RandomWorkload>(
+                std::make_unique<
+                    workload::RandomWorkload>(
                     processId,
                     configuration_.pageCountPerProcess(),
                     configuration_.pageSize(),
                     processAccessCount,
                     configuration_.randomSeed() +
-                        static_cast<std::uint64_t>(processIndex)));
+                        static_cast<std::uint64_t>(
+                            processIndex)));
+
+            break;
+
+        case infrastructure::configuration::
+            WorkloadType::Locality:
+
+            workloads.push_back(
+                std::make_unique<
+                    workload::LocalityWorkload>(
+                    processId,
+                    configuration_.pageCountPerProcess(),
+                    configuration_.pageSize(),
+                    processAccessCount,
+                    configuration_.temporalLocalityStrength(),
+                    configuration_.spatialLocalityStrength(),
+                    configuration_.workingSetSize(),
+                    configuration_.randomSeed() +
+                        static_cast<std::uint64_t>(
+                            processIndex)));
 
             break;
 
         default:
+
             throw std::invalid_argument(
                 "Unsupported simulation workload type.");
         }
     }
 
-    return std::make_unique<workload::MultiProcessWorkload>(
+    return std::make_unique<
+        workload::MultiProcessWorkload>(
         std::move(workloads));
 }
 
-SimulationResult Simulation::run()
-{
-    const auto start = std::chrono::steady_clock::now();
+SimulationResult Simulation::run() {
+    const auto start =
+        std::chrono::steady_clock::now();
 
     /*
-     * Each call to run() represents a fresh simulation using the
-     * same configuration.
+     * Each call to run() represents a fresh simulation using
+     * the same configuration.
      *
      * Destroy objects that reference the state being reset before
      * clearing/rebuilding that state.
@@ -257,24 +291,27 @@ SimulationResult Simulation::run()
     initialize();
 
     std::vector<memory::access::MemoryAccess> accesses;
+
     accesses.reserve(workload_->size());
 
-    while (workload_->hasNext())
-    {
-        accesses.push_back(workload_->nextAccess());
+    while (workload_->hasNext()) {
+        accesses.push_back(
+            workload_->nextAccess());
     }
 
     const auto executionResult =
         accessExecutor_->execute(accesses);
 
-    const auto end = std::chrono::steady_clock::now();
+    const auto end =
+        std::chrono::steady_clock::now();
 
     return SimulationResult(
         configuration_,
         executionResult,
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            end - start
-        ),
+        std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+            end - start),
         SimulationStatus::Completed);
 }
+
 } // namespace emmus::simulation
