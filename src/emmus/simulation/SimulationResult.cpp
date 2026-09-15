@@ -1,5 +1,7 @@
 #include "emmus/simulation/SimulationResult.hpp"
 
+#include <utility>
+
 namespace emmus::simulation {
 
 SimulationResult::SimulationResult(
