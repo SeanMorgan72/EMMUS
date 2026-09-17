@@ -197,6 +197,63 @@ TEST(SimulationTest, SupportsMultipleProcesses)
     EXPECT_EQ(processIds.size(), 3U);
 }
 
+TEST(SimulationTest, PageFaultStatisticsMatchExecutionStatistics)
+{
+    const auto configuration = makeConfiguration(
+        2,
+        5,
+        30,
+        2,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Random,
+        2024);
+
+    Simulation simulation(configuration);
+
+    const auto result = simulation.run();
+
+    EXPECT_EQ(
+        result.pageFaultStatistics().totalAccessCount(),
+        configuration.memoryAccessCount());
+
+    EXPECT_EQ(
+        result.pageFaultStatistics().totalPageFaultCount(),
+        result.executionResult().statistics().pageFaultCount());
+
+    EXPECT_DOUBLE_EQ(
+        result.pageFaultStatistics().faultRate(),
+        result.executionResult().statistics().pageFaultRate());
+
+    EXPECT_GE(
+        result.pageFaultStatistics().processCount(),
+        1U);
+}
+
+TEST(SimulationTest, RepeatedSimulationRunsKeepFaultStatisticsConsistent)
+{
+    const auto configuration = makeConfiguration(
+        2,
+        6,
+        40,
+        3,
+        PageReplacementPolicyType::FIFO,
+        WorkloadType::Random,
+        4321);
+
+    Simulation simulation(configuration);
+
+    const auto first = simulation.run();
+    const auto second = simulation.run();
+
+    EXPECT_EQ(
+        first.pageFaultStatistics(),
+        second.pageFaultStatistics());
+
+    EXPECT_EQ(
+        first.executionResult().statistics().pageFaultCount(),
+        second.executionResult().statistics().pageFaultCount());
+}
+
 TEST(SimulationTest, SupportsSequentialWorkload)
 {
     const auto configuration = makeConfiguration(
