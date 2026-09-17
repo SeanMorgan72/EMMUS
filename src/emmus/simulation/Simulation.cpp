@@ -133,22 +133,28 @@ void Simulation::registerPages() {
     std::uint64_t nextPageId = 1;
 
     for (std::size_t processIndex = 0;
-         processIndex < configuration_.processCount();
-         ++processIndex) {
-
-        auto& process = processManager_.createProcess(
-            configuration_.pageCountPerProcess(),
-            configuration_.pageSize().value());
+        processIndex < configuration_.processCount();
+        ++processIndex)
+    {
+        auto& process =
+            processManager_.createProcess(
+                configuration_.pageCountPerProcess(),
+                configuration_.pageSize().value());
 
         for (std::size_t pageIndex = 0;
-             pageIndex < configuration_.pageCountPerProcess();
-             ++pageIndex) {
+            pageIndex < configuration_.pageCountPerProcess();
+            ++pageIndex)
+        {
+            const auto pageId =
+                memory::identifiers::PageId{nextPageId++};
 
             memory::virtual_memory::Page page(
-                memory::identifiers::PageId{nextPageId++},
+                pageId,
                 process.processId());
 
-            mmu_->registerPage(page);
+            mmu_->registerPage(
+                page,
+                static_cast<std::uint64_t>(pageIndex));
         }
     }
 }
@@ -421,9 +427,13 @@ SimulationResult Simulation::run() {
     const auto end =
         std::chrono::steady_clock::now();
 
+    const emmus::statistics::PageFaultStatistics pageFaultStatistics =
+        mmu_->pageFaultStatistics();
+
     return SimulationResult(
         configuration_,
         executionResult,
+        pageFaultStatistics,
         std::chrono::duration_cast<
             std::chrono::nanoseconds>(
             end - start),
