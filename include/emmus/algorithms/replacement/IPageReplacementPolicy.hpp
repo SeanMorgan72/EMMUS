@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "emmus/memory/identifiers/MemoryObjectIds.hpp"
+#include "emmus/statistics/PageReplacementStatistics.hpp"
 
 namespace emmus::algorithms::replacement
 {
@@ -132,6 +133,13 @@ public:
      * policy to update its associated replacement statistics.
      */
     virtual void recordDirtyEviction() noexcept = 0;
+
+    /**
+     * @brief Returns the statistics collected by the policy.
+     */
+    [[nodiscard]]
+    virtual const emmus::statistics::PageReplacementStatistics&
+    statistics() const noexcept = 0;
 
     /**
      * @brief Selects a victim frame for page replacement.
