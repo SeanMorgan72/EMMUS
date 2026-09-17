@@ -7,6 +7,7 @@
 #include "emmus/application/MemoryAccessExecutionResult.hpp"
 #include "emmus/infrastructure/configuration/SimulationConfiguration.hpp"
 #include "emmus/statistics/PageFaultStatistics.hpp"
+#include "emmus/statistics/PageReplacementStatistics.hpp"
 
 namespace emmus::simulation {
 
@@ -21,6 +22,7 @@ public:
         infrastructure::configuration::SimulationConfiguration configuration,
         application::MemoryAccessExecutionResult executionResult,
         emmus::statistics::PageFaultStatistics pageFaultStatistics,
+        emmus::statistics::PageReplacementStatistics pageReplacementStatistics,
         std::chrono::nanoseconds executionTime,
         SimulationStatus status,
         std::string diagnostic = {});
@@ -34,6 +36,9 @@ public:
     [[nodiscard]] const emmus::statistics::PageFaultStatistics&
     pageFaultStatistics() const noexcept;
 
+    [[nodiscard]] const emmus::statistics::PageReplacementStatistics&
+    pageReplacementStatistics() const noexcept;
+
     [[nodiscard]] std::chrono::nanoseconds executionTime() const noexcept;
 
     [[nodiscard]] SimulationStatus status() const noexcept;
@@ -46,6 +51,7 @@ private:
     infrastructure::configuration::SimulationConfiguration configuration_;
     application::MemoryAccessExecutionResult executionResult_;
     emmus::statistics::PageFaultStatistics pageFaultStatistics_;
+    emmus::statistics::PageReplacementStatistics pageReplacementStatistics_;
     std::chrono::nanoseconds executionTime_;
     SimulationStatus status_;
     std::string diagnostic_;

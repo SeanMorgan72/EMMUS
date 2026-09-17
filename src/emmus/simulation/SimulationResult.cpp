@@ -8,12 +8,14 @@ SimulationResult::SimulationResult(
     infrastructure::configuration::SimulationConfiguration configuration,
     application::MemoryAccessExecutionResult executionResult,
     emmus::statistics::PageFaultStatistics pageFaultStatistics,
+    emmus::statistics::PageReplacementStatistics pageReplacementStatistics,
     std::chrono::nanoseconds executionTime,
     SimulationStatus status,
     std::string diagnostic)
     : configuration_(std::move(configuration)),
       executionResult_(std::move(executionResult)),
       pageFaultStatistics_(std::move(pageFaultStatistics)),
+      pageReplacementStatistics_(std::move(pageReplacementStatistics)),
       executionTime_(executionTime),
       status_(status),
       diagnostic_(std::move(diagnostic)) {}
@@ -31,6 +33,11 @@ SimulationResult::executionResult() const noexcept {
 const emmus::statistics::PageFaultStatistics&
 SimulationResult::pageFaultStatistics() const noexcept {
     return pageFaultStatistics_;
+}
+
+const emmus::statistics::PageReplacementStatistics&
+SimulationResult::pageReplacementStatistics() const noexcept {
+    return pageReplacementStatistics_;
 }
 
 std::chrono::nanoseconds SimulationResult::executionTime() const noexcept {
