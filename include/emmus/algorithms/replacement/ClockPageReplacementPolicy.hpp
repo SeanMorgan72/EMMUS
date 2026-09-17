@@ -162,7 +162,7 @@ public:
      * @brief Returns the collected replacement statistics.
      */
     [[nodiscard]]
-    const Statistics& statistics() const noexcept;
+    const Statistics& statistics() const noexcept override;
 
 
 private:
