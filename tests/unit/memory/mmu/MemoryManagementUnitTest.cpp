@@ -223,7 +223,7 @@ TEST_F(
     EXPECT_EQ(mmu->pageFaultCount(), 0U);
     EXPECT_EQ(mmu->pageReplacementCount(), 0U);
     EXPECT_EQ(mmu->dirtyEvictionCount(), 0U);
-    EXPECT_EQ(mmu->pageSize(), pageSize);
+    EXPECT_EQ(mmu->pageSize(), pageSize.value());
 
     EXPECT_EQ(
         replacementPolicy.chooseVictimCallCount,
