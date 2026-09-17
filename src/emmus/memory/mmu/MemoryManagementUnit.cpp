@@ -1,19 +1,19 @@
 #include "emmus/memory/mmu/MemoryManagementUnit.hpp"
 
-#include <string>
 #include <utility>
+
+#include "emmus/memory/mmu/PageTablePhysicalMemoryIntegration.hpp"
 
 namespace emmus::memory::mmu
 {
 
 MemoryManagementUnit::MemoryManagementUnit(
-    PageTableType& pageTable,
-    PhysicalMemoryManager& physicalMemory,
-    PageReplacementPolicy& replacementPolicy,
-    PageSize pageSize
-) noexcept
+    PageTable& pageTable,
+    emmus::memory::physical::PhysicalMemoryManager& physicalMemoryManager,
+    ReplacementPolicy& replacementPolicy,
+    PageSize pageSize)
     : pageTable_(pageTable),
-      physicalMemoryManager_(physicalMemory),
+      physicalMemoryManager_(physicalMemoryManager),
       replacementPolicy_(replacementPolicy),
       pageSize_(pageSize)
 {
@@ -27,6 +27,7 @@ bool MemoryManagementUnit::registerPage(Page page)
     }
 
     const PageId pageId = page.id();
+    const ProcessId processId = page.processId();
 
     if (pages_.contains(pageId))
     {
@@ -45,20 +46,101 @@ bool MemoryManagementUnit::registerPage(Page page)
 
     pages_.emplace(pageId, std::move(page));
 
+    virtualPageMappings_[processId].emplace(
+        pageId.value(),
+        pageId);
+
+    return true;
+}
+
+bool MemoryManagementUnit::registerPage(
+    Page page,
+    VirtualPageNumber virtualPageNumber)
+{
+    if (page.isResident())
+    {
+        return false;
+    }
+
+    const PageId pageId = page.id();
+    const ProcessId processId = page.processId();
+
+    if (pages_.contains(pageId))
+    {
+        return false;
+    }
+
+    if (pageTable_.lookup(pageId).has_value())
+    {
+        return false;
+    }
+
+    if (physicalMemoryManager_.isPageMapped(pageId))
+    {
+        return false;
+    }
+
+    const auto [pageIterator, pageInserted] =
+        pages_.emplace(
+            pageId,
+            std::move(page));
+
+    if (!pageInserted)
+    {
+        return false;
+    }
+
+    auto [processMappingIterator, processMappingInserted] =
+        virtualPageMappings_.try_emplace(processId);
+
+    auto& processMappings =
+        processMappingIterator->second;
+
+    const auto [mappingIterator, mappingInserted] =
+        processMappings.emplace(
+            virtualPageNumber,
+            pageId);
+
+    if (!mappingInserted)
+    {
+        pages_.erase(pageIterator);
+
+        if (processMappings.empty())
+        {
+            virtualPageMappings_.erase(
+                processMappingIterator);
+        }
+
+        return false;
+    }
+
     return true;
 }
 
 MemoryManagementUnit::AccessResult
 MemoryManagementUnit::access(const Access& access)
 {
-    const auto [pageId, pageOffset] =
+    const auto [virtualPageId, pageOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
             pageSize_);
 
-    (void)pageOffset;
+    const auto resolvedPageId =
+        resolvePageId(
+            access.processId(),
+            virtualPageId.value());
 
-    Page* requestedPage = findPage(pageId);
+    if (!resolvedPageId.has_value())
+    {
+        return failure(
+            "Memory access references an unregistered virtual page");
+    }
+
+    const PageId pageId =
+        resolvedPageId.value();
+
+    Page* requestedPage =
+        findPage(pageId);
 
     if (requestedPage == nullptr)
     {
@@ -72,10 +154,14 @@ MemoryManagementUnit::access(const Access& access)
             "Memory access process does not own the requested virtual page");
     }
 
+    (void)pageOffset;
+
     PageTablePhysicalMemoryIntegration integration{
         pageTable_,
-        physicalMemoryManager_
-    };
+        physicalMemoryManager_};
+
+    pageFaultStatistics_.recordAccess(
+        access.processId());
 
     const auto mappedFrame =
         pageTable_.lookup(pageId);
@@ -88,45 +174,134 @@ MemoryManagementUnit::access(const Access& access)
                 "Page-table and physical-memory mapping is inconsistent");
         }
 
-        if (!requestedPage->isResident())
-        {
-            return failure(
-                "Page-table mapping exists for a nonresident page");
-        }
-
-        if (!requestedPage->mappedFrame().has_value())
-        {
-            return failure(
-                "Resident page does not have an associated frame");
-        }
-
-        if (requestedPage->mappedFrame().value() != mappedFrame.value())
-        {
-            return failure(
-                "Page frame does not match the page-table mapping");
-        }
-
         return processResidentAccess(
             access,
             pageId,
             mappedFrame.value());
     }
 
-    if (physicalMemoryManager_.isPageMapped(pageId))
-    {
-        return failure(
-            "Physical-memory mapping exists without a page-table mapping");
-    }
-
-    if (requestedPage->isResident())
-    {
-        return failure(
-            "Page is marked resident without a page-table mapping");
-    }
-
     return processPageFault(
         access,
         pageId);
+}
+
+void MemoryManagementUnit::reset()
+{
+    PageTablePhysicalMemoryIntegration integration{
+        pageTable_,
+        physicalMemoryManager_};
+
+    for (auto& [pageId, page] : pages_)
+    {
+        if (!page.isResident())
+        {
+            continue;
+        }
+
+        const auto mappedFrame =
+            page.mappedFrame();
+
+        if (!mappedFrame.has_value())
+        {
+            continue;
+        }
+
+        if (!integration.isMappingConsistent(pageId))
+        {
+            continue;
+        }
+
+        if (!integration.releaseFrame(
+                mappedFrame.value()))
+        {
+            continue;
+        }
+
+        (void)page.unmapFromFrame();
+    }
+
+    replacementPolicy_.reset();
+
+    pageFaultStatistics_.reset();
+    pageFaultCount_ = 0U;
+    pageReplacementCount_ = 0U;
+    dirtyEvictionCount_ = 0U;
+}
+
+std::size_t
+MemoryManagementUnit::registeredPageCount() const noexcept
+{
+    return pages_.size();
+}
+
+std::size_t
+MemoryManagementUnit::pageFaultCount() const noexcept
+{
+    return pageFaultCount_;
+}
+
+std::size_t
+MemoryManagementUnit::pageReplacementCount() const noexcept
+{
+    return pageReplacementCount_;
+}
+
+std::size_t
+MemoryManagementUnit::dirtyEvictionCount() const noexcept
+{
+    return dirtyEvictionCount_;
+}
+
+std::size_t MemoryManagementUnit::pageSize() const noexcept
+{
+    return pageSize_.value();
+}
+
+MemoryManagementUnit::Page*
+MemoryManagementUnit::page(PageId pageId) noexcept
+{
+    return findPage(pageId);
+}
+
+const MemoryManagementUnit::Page*
+MemoryManagementUnit::page(PageId pageId) const noexcept
+{
+    return findPage(pageId);
+}
+
+const MemoryManagementUnit::PageFaultStatistics&
+MemoryManagementUnit::pageFaultStatistics() const noexcept
+{
+    return pageFaultStatistics_;
+}
+
+std::optional<MemoryManagementUnit::PageId>
+MemoryManagementUnit::resolvePageId(
+    ProcessId processId,
+    VirtualPageNumber virtualPageNumber) const noexcept
+{
+    const auto processIterator =
+        virtualPageMappings_.find(processId);
+
+    if (processIterator ==
+        virtualPageMappings_.end())
+    {
+        return std::nullopt;
+    }
+
+    const auto& processMappings =
+        processIterator->second;
+
+    const auto mappingIterator =
+        processMappings.find(virtualPageNumber);
+
+    if (mappingIterator ==
+        processMappings.end())
+    {
+        return std::nullopt;
+    }
+
+    return mappingIterator->second;
 }
 
 MemoryManagementUnit::AccessResult
@@ -135,62 +310,35 @@ MemoryManagementUnit::processResidentAccess(
     PageId pageId,
     FrameId frameId)
 {
-    Page* page = findPage(pageId);
+    Page* page =
+        findPage(pageId);
 
     if (page == nullptr)
     {
         return failure(
-            "Registered page could not be found");
+            "Page-table mapping references an unregistered page");
     }
 
     if (!page->isResident())
     {
         return failure(
-            "Resident access requested for a nonresident page");
+            "Page-table mapping is inconsistent with page residency");
     }
 
-    if (!page->mappedFrame().has_value())
+    if (!page->mappedFrame().has_value() ||
+        page->mappedFrame().value() != frameId)
     {
         return failure(
-            "Resident page does not have an associated frame");
+            "Page-table mapping is inconsistent with page frame");
     }
 
-    if (page->mappedFrame().value() != frameId)
-    {
-        return failure(
-            "Resident page frame does not match the requested frame");
-    }
-
-    PageTablePhysicalMemoryIntegration integration{
-        pageTable_,
-        physicalMemoryManager_
-    };
-
-    if (!integration.isMappingConsistent(pageId))
-    {
-        return failure(
-            "Resident page mapping is inconsistent");
-    }
-
-    const auto result =
-        completeAccess(
-            access,
-            *page,
-            frameId,
-            false,
-            false,
-            false);
-
-    if (!result.success())
-    {
-        return result;
-    }
-
-    replacementPolicy_.pageAccessed(
-        pageId,
-        frameId);
-
-    return result;
+    return completeAccess(
+        access,
+        *page,
+        frameId,
+        false,
+        false,
+        false);
 }
 
 MemoryManagementUnit::AccessResult
@@ -229,17 +377,13 @@ MemoryManagementUnit::processPageFault(
             "Page-fault handling found an existing physical-memory mapping");
     }
 
-    /*
-     * The MMU has detected a page fault at this point.
-     *
-     * The existing test contract expects pageFaultCount() to increase
-     * even when the subsequent frame-allocation operation fails.
-     */
     ++pageFaultCount_;
+    pageFaultStatistics_.recordPageFault(
+        access.processId());
 
     /*
-     * Prefer a free frame whenever one is available. The replacement
-     * policy must not be invoked in this case.
+     * Prefer a free frame whenever one is available.
+     * The replacement policy must not be invoked in this case.
      */
     if (physicalMemoryManager_.hasFreeFrame())
     {
@@ -325,27 +469,31 @@ MemoryManagementUnit::processPageFault(
             pageId,
             selectedFrame);
 
-        replacementPolicy_.pageAccessed(
-            pageId,
-            selectedFrame);
-
         return result;
     }
 
     /*
-    * Physical memory is full. The replacement policy must select the
-    * victim frame.
-    */
+     * Physical memory is full.
+     * The replacement policy must select the victim frame.
+     */
     const auto victimFrameOptional =
         replacementPolicy_.chooseVictim();
 
     if (!victimFrameOptional.has_value())
     {
-        return pageFaultFailure(
-            "Physical memory is full and the replacement policy could not select a victim");
+        return AccessResult{
+            false,
+            true,
+            false,
+            std::nullopt,
+            std::nullopt,
+            false,
+            "Physical memory is full and the replacement policy could not select a victim"
+        };
     }
 
-    const FrameId victimFrame = victimFrameOptional.value();
+    const FrameId victimFrame =
+        victimFrameOptional.value();
 
     if (!physicalMemoryManager_.isValidFrameId(victimFrame))
     {
@@ -406,21 +554,11 @@ MemoryManagementUnit::processPageFault(
     const bool victimWasReferenced =
         victimPage->isReferenced();
 
-    /*
-     * Validate the requested virtual address and physical translation
-     * before modifying the existing victim state. This prevents a
-     * translation failure from destroying a valid resident mapping.
-     */
     const auto [requestedPageId, requestedOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
             pageSize_);
 
-    if (requestedPageId != pageId)
-    {
-        return failure(
-            "Virtual-address decomposition does not match the requested page");
-    }
 
     try
     {
@@ -434,18 +572,11 @@ MemoryManagementUnit::processPageFault(
         return failure(exception.what());
     }
 
-    /*
-     * Dirty eviction represents the simulated write-back of the victim
-     * page before its frame is reused.
-     */
     if (victimWasDirty)
     {
         victimPage->clearDirty();
     }
 
-    /*
-     * Restore the victim if any part of the replacement transaction fails.
-     */
     const auto restoreVictim =
         [&]() -> bool
         {
@@ -496,10 +627,6 @@ MemoryManagementUnit::processPageFault(
                 victimPageId);
         };
 
-    /*
-     * Remove the victim from the coordinated page-table and physical
-     * memory state.
-     */
     if (!integration.releaseFrame(victimFrame))
     {
         if (victimWasDirty)
@@ -518,10 +645,6 @@ MemoryManagementUnit::processPageFault(
 
         if (unmapResult.has_value())
         {
-            /*
-             * The physical frame has already been released. Attempt to
-             * restore the victim mapping before reporting failure.
-             */
             (void)restoreVictim();
 
             return failure(
@@ -533,22 +656,16 @@ MemoryManagementUnit::processPageFault(
         victimPageId,
         victimFrame);
 
-    /*
-     * Reuse the released frame for the requested page.
-     */
     const auto requestedFrame =
         integration.mapPage(pageId);
 
     if (!requestedFrame.has_value() ||
         requestedFrame.value() != victimFrame)
     {
-        /*
-         * The frame should have been reused. If it was not, attempt to
-         * restore the victim.
-         */
         if (requestedFrame.has_value())
         {
-            (void)integration.releaseFrame(requestedFrame.value());
+            (void)integration.releaseFrame(
+                requestedFrame.value());
         }
 
         (void)restoreVictim();
@@ -592,17 +709,12 @@ MemoryManagementUnit::processPageFault(
     {
         (void)requestedPage->unmapFromFrame();
         (void)integration.releaseFrame(victimFrame);
-
         (void)restoreVictim();
 
         return result;
     }
 
     replacementPolicy_.pageLoaded(
-        pageId,
-        victimFrame);
-
-    replacementPolicy_.pageAccessed(
         pageId,
         victimFrame);
 
@@ -645,42 +757,39 @@ MemoryManagementUnit::completeAccess(
             "Page frame does not match the requested frame");
     }
 
-    const auto [pageId, pageOffset] =
+    const auto [virtualPageId, pageOffset] =
         emmus::memory::access::decomposeVirtualAddress(
             access.virtualAddress(),
             pageSize_);
 
-    if (pageId != page.id())
+    const auto resolvedPageId =
+        resolvePageId(
+            page.processId(),
+            virtualPageId.value());
+
+    if (!resolvedPageId.has_value() ||
+        resolvedPageId.value() != page.id())
     {
         return failure(
-            "Virtual-address decomposition does not match the resident page");
+            "Memory access virtual page does not match registered page");
     }
 
-    PhysicalAddress physicalAddress{0};
+    const auto physicalAddress =
+        emmus::memory::access::PhysicalAddress{
+            frameId.value() * pageSize_.value() +
+            pageOffset.value()};
 
-    try
-    {
-        physicalAddress =
-            emmus::memory::access::makePhysicalAddress(
-                frameId,
-                pageOffset,
-                pageSize_);
-    }
-    catch (const std::overflow_error& exception)
-    {
-        return failure(exception.what());
-    }
-
-    /*
-     * Only modify page state after physical-address calculation has
-     * succeeded.
-     */
     page.markReferenced();
 
-    if (access.isWrite())
+    if (access.operation() ==
+        emmus::memory::access::MemoryAccessOperation::Write)
     {
         page.markDirty();
     }
+
+    replacementPolicy_.pageAccessed(
+        page.id(),
+        frameId);
 
     return AccessResult{
         true,
@@ -721,152 +830,19 @@ MemoryManagementUnit::findPage(PageId pageId) const noexcept
 }
 
 MemoryManagementUnit::AccessResult
-MemoryManagementUnit::failure(std::string errorInformation)
+MemoryManagementUnit::failure(
+    const std::string& errorInformation,
+    bool pageFault) const
 {
     return AccessResult{
         false,
-        false,
+        pageFault,
         false,
         std::nullopt,
         std::nullopt,
         false,
-        std::move(errorInformation)
+        errorInformation
     };
-}
-
-MemoryManagementUnit::AccessResult
-MemoryManagementUnit::pageFaultFailure(std::string errorInformation)
-{
-    return AccessResult{
-        false,
-        true,
-        false,
-        std::nullopt,
-        std::nullopt,
-        false,
-        std::move(errorInformation)
-    };
-}
-
-void MemoryManagementUnit::reset()
-{
-    PageTablePhysicalMemoryIntegration integration{
-        pageTable_,
-        physicalMemoryManager_
-    };
-
-    /*
-     * Clear every successfully resident page. The integration layer is
-     * used so that page-table and physical-memory state remain coordinated.
-     */
-    for (auto& [pageId, page] : pages_)
-    {
-        if (!page.isResident())
-        {
-            continue;
-        }
-
-        if (!page.mappedFrame().has_value())
-        {
-            continue;
-        }
-
-        if (!integration.isMappingConsistent(pageId))
-        {
-            continue;
-        }
-
-        if (!integration.releaseFrame(page.mappedFrame().value()))
-        {
-            continue;
-        }
-
-        (void)page.unmapFromFrame();
-    }
-
-    replacementPolicy_.reset();
-
-    pageFaultCount_ = 0;
-    pageReplacementCount_ = 0;
-    dirtyEvictionCount_ = 0;
-}
-
-MemoryManagementUnit::PageSize
-MemoryManagementUnit::pageSize() const noexcept
-{
-    return pageSize_;
-}
-
-std::size_t
-MemoryManagementUnit::registeredPageCount() const noexcept
-{
-    return pages_.size();
-}
-
-std::uint64_t
-MemoryManagementUnit::pageFaultCount() const noexcept
-{
-    return pageFaultCount_;
-}
-
-std::uint64_t
-MemoryManagementUnit::pageReplacementCount() const noexcept
-{
-    return pageReplacementCount_;
-}
-
-std::uint64_t
-MemoryManagementUnit::dirtyEvictionCount() const noexcept
-{
-    return dirtyEvictionCount_;
-}
-
-MemoryManagementUnit::Page*
-MemoryManagementUnit::page(PageId pageId) noexcept
-{
-    return findPage(pageId);
-}
-
-const MemoryManagementUnit::Page*
-MemoryManagementUnit::page(PageId pageId) const noexcept
-{
-    return findPage(pageId);
-}
-
-MemoryManagementUnit::PageTableType&
-MemoryManagementUnit::pageTable() noexcept
-{
-    return pageTable_;
-}
-
-const MemoryManagementUnit::PageTableType&
-MemoryManagementUnit::pageTable() const noexcept
-{
-    return pageTable_;
-}
-
-MemoryManagementUnit::PhysicalMemoryManager&
-MemoryManagementUnit::physicalMemoryManager() noexcept
-{
-    return physicalMemoryManager_;
-}
-
-const MemoryManagementUnit::PhysicalMemoryManager&
-MemoryManagementUnit::physicalMemoryManager() const noexcept
-{
-    return physicalMemoryManager_;
-}
-
-MemoryManagementUnit::PageReplacementPolicy&
-MemoryManagementUnit::replacementPolicy() noexcept
-{
-    return replacementPolicy_;
-}
-
-const MemoryManagementUnit::PageReplacementPolicy&
-MemoryManagementUnit::replacementPolicy() const noexcept
-{
-    return replacementPolicy_;
 }
 
 } // namespace emmus::memory::mmu
