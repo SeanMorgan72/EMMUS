@@ -66,12 +66,21 @@ public:
     void recordDirtyEviction() noexcept override
     {
         ++dirtyEvictionCount_;
+        statistics_.recordDirtyEviction();
+    }
+
+    [[nodiscard]]
+    const emmus::statistics::PageReplacementStatistics&
+    statistics() const noexcept override
+    {
+        return statistics_;
     }
 
 
     void reset() override
     {
         dirtyEvictionCount_ = 0U;
+        statistics_.reset();
     }
 
 
@@ -85,6 +94,7 @@ public:
 private:
 
     std::size_t dirtyEvictionCount_ = 0U;
+    emmus::statistics::PageReplacementStatistics statistics_;
 };
 
 } // namespace
