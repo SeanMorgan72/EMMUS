@@ -229,6 +229,84 @@ TEST(SimulationTest, PageFaultStatisticsMatchExecutionStatistics)
         1U);
 }
 
+TEST(SimulationTest, SimulationExposesReplacementStatistics)
+{
+    const auto configuration = makeConfiguration(
+        1,
+        5,
+        30,
+        2,
+        PageReplacementPolicyType::FIFO,
+        WorkloadType::Random,
+        7);
+
+    Simulation simulation(configuration);
+
+    const auto result = simulation.run();
+
+    EXPECT_EQ(
+        result.pageReplacementStatistics().replacementCount(),
+        result.executionResult().statistics().pageReplacementCount());
+
+    EXPECT_EQ(
+        result.pageReplacementStatistics().dirtyEvictionCount(),
+        result.executionResult().statistics().dirtyEvictionCount());
+
+    EXPECT_GE(
+        result.pageReplacementStatistics().replacementCount(),
+        0U);
+}
+
+TEST(SimulationTest, RepeatedRunsCanBeComparedAcrossPolicies)
+{
+    const auto seed = 31415U;
+
+    const auto fifoConfiguration = makeConfiguration(
+        1,
+        6,
+        50,
+        3,
+        PageReplacementPolicyType::FIFO,
+        WorkloadType::Random,
+        seed);
+
+    const auto lruConfiguration = makeConfiguration(
+        1,
+        6,
+        50,
+        3,
+        PageReplacementPolicyType::LRU,
+        WorkloadType::Random,
+        seed);
+
+    const auto fifoResult = Simulation(fifoConfiguration).run();
+    const auto lruResult = Simulation(lruConfiguration).run();
+
+    EXPECT_EQ(
+        fifoResult.executionResult().size(),
+        lruResult.executionResult().size());
+
+    EXPECT_EQ(
+        fifoResult.executionResult().statistics().memoryAccessCount(),
+        lruResult.executionResult().statistics().memoryAccessCount());
+
+    EXPECT_EQ(
+        fifoResult.pageReplacementStatistics().replacementCount(),
+        fifoResult.executionResult().statistics().pageReplacementCount());
+
+    EXPECT_EQ(
+        lruResult.pageReplacementStatistics().replacementCount(),
+        lruResult.executionResult().statistics().pageReplacementCount());
+
+    EXPECT_EQ(
+        fifoResult.pageReplacementStatistics().dirtyEvictionCount(),
+        fifoResult.executionResult().statistics().dirtyEvictionCount());
+
+    EXPECT_EQ(
+        lruResult.pageReplacementStatistics().dirtyEvictionCount(),
+        lruResult.executionResult().statistics().dirtyEvictionCount());
+}
+
 TEST(SimulationTest, RepeatedSimulationRunsKeepFaultStatisticsConsistent)
 {
     const auto configuration = makeConfiguration(
