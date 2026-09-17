@@ -119,6 +119,11 @@ public:
         return nextVictim;
     }
 
+    const emmus::statistics::PageReplacementStatistics& statistics() const noexcept override
+    {
+        return statistics_;
+    }
+
     void reset() override
     {
         loadedEvents.clear();
@@ -142,6 +147,9 @@ public:
     std::vector<AccessEvent> accessedEvents;
 
     std::vector<RemovalEvent> removedEvents;
+
+    private:
+    emmus::statistics::PageReplacementStatistics statistics_;
 };
 
 
