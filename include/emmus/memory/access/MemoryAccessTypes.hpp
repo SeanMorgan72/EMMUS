@@ -201,12 +201,18 @@ private:
 [[nodiscard]] constexpr auto decomposeVirtualAddress(
     VirtualAddress address,
     PageSize pageSize)
-    -> std::pair<emmus::memory::identifiers::PageId, PageOffset> {
+    -> std::pair<
+        emmus::memory::identifiers::PageId,
+        PageOffset>
+{
     const auto pageSizeValue = pageSize.value();
     const auto addressValue = address.value();
 
-    const auto pageNumber = addressValue / pageSizeValue;
-    const auto offset = addressValue % pageSizeValue;
+    const auto pageNumber =
+        addressValue / pageSizeValue;
+
+    const auto offset =
+        addressValue % pageSizeValue;
 
     return {
         emmus::memory::identifiers::PageId{pageNumber},
