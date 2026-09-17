@@ -125,6 +125,10 @@ public:
      */
     void reset() noexcept;
 
+    [[nodiscard]]
+    bool operator==(
+        const PageReplacementStatistics& other
+    ) const = default;
 
 private:
 
