@@ -7,11 +7,13 @@ namespace emmus::simulation {
 SimulationResult::SimulationResult(
     infrastructure::configuration::SimulationConfiguration configuration,
     application::MemoryAccessExecutionResult executionResult,
+    emmus::statistics::PageFaultStatistics pageFaultStatistics,
     std::chrono::nanoseconds executionTime,
     SimulationStatus status,
     std::string diagnostic)
     : configuration_(std::move(configuration)),
       executionResult_(std::move(executionResult)),
+      pageFaultStatistics_(std::move(pageFaultStatistics)),
       executionTime_(executionTime),
       status_(status),
       diagnostic_(std::move(diagnostic)) {}
@@ -24,6 +26,11 @@ SimulationResult::configuration() const noexcept {
 const application::MemoryAccessExecutionResult&
 SimulationResult::executionResult() const noexcept {
     return executionResult_;
+}
+
+const emmus::statistics::PageFaultStatistics&
+SimulationResult::pageFaultStatistics() const noexcept {
+    return pageFaultStatistics_;
 }
 
 std::chrono::nanoseconds SimulationResult::executionTime() const noexcept {
