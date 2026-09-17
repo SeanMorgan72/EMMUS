@@ -109,6 +109,14 @@ public:
     void recordDirtyEviction() noexcept override
     {
         ++dirtyEvictionCount_;
+        statistics_.recordDirtyEviction();
+    }
+
+    [[nodiscard]]
+    const emmus::statistics::PageReplacementStatistics&
+    statistics() const noexcept override
+    {
+        return statistics_;
     }
 
 
@@ -128,6 +136,7 @@ public:
         victim_.reset();
 
         dirtyEvictionCount_ = 0U;
+        statistics_.reset();
     }
 
 
@@ -184,6 +193,7 @@ private:
     std::optional<FrameId> victim_;
 
     std::size_t dirtyEvictionCount_ = 0U;
+    emmus::statistics::PageReplacementStatistics statistics_;
 };
 
 } // namespace
@@ -811,6 +821,13 @@ TEST_F(
         {
         }
 
+        [[nodiscard]]
+        const emmus::statistics::PageReplacementStatistics&
+        statistics() const noexcept override
+        {
+            return statistics_;
+        }
+
 
         [[nodiscard]]
         std::optional<FrameId> chooseVictim() override
@@ -827,6 +844,7 @@ TEST_F(
     private:
 
         bool& destroyed_;
+        emmus::statistics::PageReplacementStatistics statistics_;
     };
 
 
