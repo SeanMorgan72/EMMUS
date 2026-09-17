@@ -430,10 +430,14 @@ SimulationResult Simulation::run() {
     const emmus::statistics::PageFaultStatistics pageFaultStatistics =
         mmu_->pageFaultStatistics();
 
+    const emmus::statistics::PageReplacementStatistics pageReplacementStatistics =
+        replacementPolicy_->statistics();
+
     return SimulationResult(
         configuration_,
         executionResult,
         pageFaultStatistics,
+        pageReplacementStatistics,
         std::chrono::duration_cast<
             std::chrono::nanoseconds>(
             end - start),
