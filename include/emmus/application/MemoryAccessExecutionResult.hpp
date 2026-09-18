@@ -20,6 +20,8 @@ struct MemoryAccessExecutionRecord
 {
     memory::access::MemoryAccess access;
     memory::access::MemoryAccessResult result;
+
+    bool operator==(const MemoryAccessExecutionRecord&) const = default;
 };
 
 
