@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "emmus/algorithms/replacement/PageReplacementPolicyType.hpp"
 #include "emmus/memory/access/MemoryAccessTypes.hpp"
