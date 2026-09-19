@@ -835,6 +835,23 @@ Evidence
 
 The Requirements Traceability Matrix provides the detailed mapping between requirements and verification activities.
 
+### Traceability artifacts
+
+- [docs/requirements/README.md](docs/requirements/README.md) — traceability directory and review entry points
+- [docs/requirements/requirements-traceability-matrix.md](docs/requirements/requirements-traceability-matrix.md) — requirement-to-implementation-to-test matrix
+- [docs/verification/traceability-evidence.md](docs/verification/traceability-evidence.md) — evidence review workflow and current status
+- [tests/system/README.md](tests/system/README.md) — system-test backlog and traceability expectations
+
+### Review workflow
+
+Before a major review, project gate, or evaluator demonstration, maintainers should:
+
+1. update the traceability matrix for any changed requirement,
+2. map the requirement to implementation files and test cases,
+3. confirm the verification result in the relevant unit/integration/system suite,
+4. record any remaining coverage gaps and accepted risk,
+5. present the matrix and evidence artifacts together with the verified test output.
+
 ---
 
 ## Development Status
