@@ -254,6 +254,7 @@ System-level tests should verify complete simulation scenarios:
 
 - Complete workload execution.
 - Replacement-algorithm comparison.
+- Page-fault comparison results for each algorithm.
 - Expected page-fault counts.
 - Dirty-page behavior.
 - Configuration-driven execution.
