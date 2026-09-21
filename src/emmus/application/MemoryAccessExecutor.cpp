@@ -1,7 +1,6 @@
 #include "emmus/application/MemoryAccessExecutor.hpp"
 
 #include <chrono>
-#include <iostream>
 
 namespace emmus::application
 {
@@ -32,12 +31,6 @@ MemoryAccessExecutor::execute(
     {
         const auto result =
             memoryManagementUnit_.access(access);
-        
-        std::cerr
-        << "access: success=" << result.success()
-        << " pageFault=" << result.pageFault()
-        << " replacement=" << result.pageReplacement()
-        << " error=\"" << result.errorInformation() << "\"\n";
 
         executionResult.records_.push_back(
             MemoryAccessExecutionRecord{
