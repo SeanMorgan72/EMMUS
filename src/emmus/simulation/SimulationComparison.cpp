@@ -37,6 +37,28 @@ emmus::statistics::PageFaultComparison SimulationComparison::run() const
     return comparison;
 }
 
+emmus::statistics::ExecutionTimeComparison
+SimulationComparison::runExecutionTimeComparison() const
+{
+    emmus::statistics::ExecutionTimeComparison comparison;
+
+    for (const auto policy : supportedPolicies())
+    {
+        const auto configuration =
+            benchmark_.withReplacementPolicy(policy)
+                .toSimulationConfiguration();
+
+        const auto result = Simulation(configuration).run();
+
+        comparison.recordResult(
+            policy,
+            result.pageReplacementStatistics(),
+            result.executionTime());
+    }
+
+    return comparison;
+}
+
 std::vector<SimulationComparison::PolicyType>
 SimulationComparison::supportedPolicies() noexcept
 {

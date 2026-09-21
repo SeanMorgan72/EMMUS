@@ -5,6 +5,7 @@
 #include "emmus/algorithms/replacement/PageReplacementPolicyType.hpp"
 #include "emmus/infrastructure/configuration/BenchmarkConfiguration.hpp"
 #include "emmus/simulation/Simulation.hpp"
+#include "emmus/statistics/ExecutionTimeComparison.hpp"
 #include "emmus/statistics/PageFaultComparison.hpp"
 
 namespace emmus::simulation
@@ -30,6 +31,9 @@ public:
     benchmark() const noexcept;
 
     [[nodiscard]] emmus::statistics::PageFaultComparison run() const;
+
+    [[nodiscard]] emmus::statistics::ExecutionTimeComparison
+    runExecutionTimeComparison() const;
 
 private:
     static std::vector<PolicyType> supportedPolicies() noexcept;
