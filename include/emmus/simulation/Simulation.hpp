@@ -23,6 +23,12 @@ public:
 
     [[nodiscard]] SimulationResult run();
 
+    [[nodiscard]] memory::physical::PhysicalMemoryManager&
+    physicalMemoryManager() noexcept;
+
+    [[nodiscard]] const memory::physical::PhysicalMemoryManager&
+    physicalMemoryManager() const noexcept;
+
 private:
     void initialize();
 

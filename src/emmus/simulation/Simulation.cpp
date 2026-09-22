@@ -389,6 +389,16 @@ Simulation::createWorkload() {
         std::move(workloads));
 }
 
+memory::physical::PhysicalMemoryManager&
+Simulation::physicalMemoryManager() noexcept {
+    return physicalMemoryManager_;
+}
+
+const memory::physical::PhysicalMemoryManager&
+Simulation::physicalMemoryManager() const noexcept {
+    return physicalMemoryManager_;
+}
+
 SimulationResult Simulation::run() {
     const auto start =
         std::chrono::steady_clock::now();
