@@ -78,6 +78,54 @@ bool PhysicalMemoryManager::isPageMapped(
 }
 
 
+PhysicalMemoryUtilization
+PhysicalMemoryManager::snapshotUtilization() const noexcept
+{
+    PhysicalMemoryUtilization snapshot;
+    snapshot.totalFrames = capacity();
+    snapshot.allocatedFrames = allocatedFrameCount_;
+    snapshot.freeFrames = freeFrameCount();
+
+    if (snapshot.totalFrames == 0U)
+    {
+        snapshot.utilizationRatio = 0.0;
+        snapshot.utilizationPercent = 0.0;
+        snapshot.frames.clear();
+        return snapshot;
+    }
+
+    snapshot.frames.reserve(snapshot.totalFrames);
+
+    for (const Frame& candidate : frames_)
+    {
+        FrameUtilizationSnapshot frameSnapshot{candidate.id()};
+        frameSnapshot.isOccupied = candidate.isOccupied();
+        frameSnapshot.isAllocated = candidate.isOccupied();
+        frameSnapshot.pageId = candidate.mappedPage();
+        frameSnapshot.state = candidate.isOccupied()
+            ? FrameState::Allocated
+            : FrameState::Free;
+
+        snapshot.frames.push_back(frameSnapshot);
+    }
+
+    if (snapshot.totalFrames == 0U)
+    {
+        snapshot.utilizationRatio = 0.0;
+    }
+    else
+    {
+        snapshot.utilizationRatio =
+            static_cast<double>(snapshot.allocatedFrames) /
+            static_cast<double>(snapshot.totalFrames);
+    }
+
+    snapshot.utilizationPercent =
+        snapshot.utilizationRatio * 100.0;
+
+    return snapshot;
+}
+
 std::optional<PhysicalMemoryManager::FrameId>
 PhysicalMemoryManager::allocateFrame(
     PageId pageId

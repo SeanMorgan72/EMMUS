@@ -6,6 +6,7 @@
 
 #include "emmus/memory/identifiers/MemoryObjectIds.hpp"
 #include "emmus/memory/physical/Frame.hpp"
+#include "emmus/memory/physical/PhysicalMemoryUtilization.hpp"
 
 namespace emmus::memory::physical
 {
@@ -85,6 +86,14 @@ public:
      */
     [[nodiscard]]
     FrameCount allocatedFrameCount() const noexcept;
+
+
+    /**
+     * @brief Creates a snapshot describing the current utilization state
+     *        of every physical frame.
+     */
+    [[nodiscard]]
+    PhysicalMemoryUtilization snapshotUtilization() const noexcept;
 
 
     /**
