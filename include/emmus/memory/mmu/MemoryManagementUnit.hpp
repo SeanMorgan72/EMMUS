@@ -14,6 +14,7 @@
 #include "emmus/memory/mmu/PageTablePhysicalMemoryIntegration.hpp"
 #include "emmus/memory/physical/PhysicalMemoryManager.hpp"
 #include "emmus/memory/virtual_memory/Page.hpp"
+#include "emmus/simulation/activity/SimulationActivityLog.hpp"
 #include "emmus/statistics/PageFaultStatistics.hpp"
 #include "emmus/algorithms/replacement/IPageReplacementPolicy.hpp"
 
@@ -113,6 +114,14 @@ public:
     const PageFaultStatistics&
     pageFaultStatistics() const noexcept;
 
+    void setActivityLog(
+        emmus::simulation::activity::SimulationActivityLog* activityLog
+    ) noexcept;
+
+    [[nodiscard]]
+    const emmus::simulation::activity::SimulationActivityLog*
+    activityLog() const noexcept;
+
 private:
     [[nodiscard]]
     std::optional<PageId> resolvePageId(
@@ -165,6 +174,8 @@ private:
             PageId>> virtualPageMappings_;
 
     PageFaultStatistics pageFaultStatistics_;
+
+    emmus::simulation::activity::SimulationActivityLog* activityLog_{nullptr};
 
     std::size_t pageFaultCount_{0U};
 

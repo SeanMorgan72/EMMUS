@@ -130,10 +130,34 @@ MemoryManagementUnit::access(const Access& access)
             access.processId(),
             virtualPageId.value());
 
+    if (activityLog_ != nullptr)
+    {
+        activityLog_->recordStatus(
+            access.processId(),
+            "Processing access",
+            resolvedPageId,
+            std::nullopt,
+            true);
+    }
+
     if (!resolvedPageId.has_value())
     {
-        return failure(
+        const auto result = failure(
             "Memory access references an unregistered virtual page");
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordAccess(
+                access.processId(),
+                emmus::memory::identifiers::PageId{0U},
+                std::nullopt,
+                access.operation(),
+                false,
+                false,
+                false,
+                false,
+                result.errorInformation());
+        }
+        return result;
     }
 
     const PageId pageId =
@@ -144,14 +168,42 @@ MemoryManagementUnit::access(const Access& access)
 
     if (requestedPage == nullptr)
     {
-        return failure(
+        const auto result = failure(
             "Memory access references an unregistered virtual page");
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordAccess(
+                access.processId(),
+                emmus::memory::identifiers::PageId{0U},
+                std::nullopt,
+                access.operation(),
+                false,
+                false,
+                false,
+                false,
+                result.errorInformation());
+        }
+        return result;
     }
 
     if (requestedPage->processId() != access.processId())
     {
-        return failure(
+        const auto result = failure(
             "Memory access process does not own the requested virtual page");
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordAccess(
+                access.processId(),
+                pageId,
+                std::nullopt,
+                access.operation(),
+                false,
+                false,
+                false,
+                false,
+                result.errorInformation());
+        }
+        return result;
     }
 
     (void)pageOffset;
@@ -170,19 +222,61 @@ MemoryManagementUnit::access(const Access& access)
     {
         if (!integration.isMappingConsistent(pageId))
         {
-            return failure(
+            const auto result = failure(
                 "Page-table and physical-memory mapping is inconsistent");
+            if (activityLog_ != nullptr)
+            {
+                activityLog_->recordAccess(
+                    access.processId(),
+                    pageId,
+                    std::nullopt,
+                    access.operation(),
+                    false,
+                    false,
+                    false,
+                    false,
+                    result.errorInformation());
+            }
+            return result;
         }
 
-        return processResidentAccess(
+        const auto result = processResidentAccess(
             access,
             pageId,
             mappedFrame.value());
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordAccess(
+                access.processId(),
+                pageId,
+                mappedFrame.value(),
+                access.operation(),
+                result.success(),
+                result.pageFault(),
+                result.pageReplacement(),
+                result.dirtyEviction(),
+                result.errorInformation());
+        }
+        return result;
     }
 
-    return processPageFault(
+    const auto result = processPageFault(
         access,
         pageId);
+    if (activityLog_ != nullptr)
+    {
+        activityLog_->recordAccess(
+            access.processId(),
+            pageId,
+            result.frameId(),
+            access.operation(),
+            result.success(),
+            result.pageFault(),
+            result.pageReplacement(),
+            result.dirtyEviction(),
+            result.errorInformation());
+    }
+    return result;
 }
 
 void MemoryManagementUnit::reset()
@@ -273,6 +367,19 @@ const MemoryManagementUnit::PageFaultStatistics&
 MemoryManagementUnit::pageFaultStatistics() const noexcept
 {
     return pageFaultStatistics_;
+}
+
+void MemoryManagementUnit::setActivityLog(
+    emmus::simulation::activity::SimulationActivityLog* activityLog
+) noexcept
+{
+    activityLog_ = activityLog;
+}
+
+const emmus::simulation::activity::SimulationActivityLog*
+MemoryManagementUnit::activityLog() const noexcept
+{
+    return activityLog_;
 }
 
 std::optional<MemoryManagementUnit::PageId>
@@ -381,6 +488,15 @@ MemoryManagementUnit::processPageFault(
     pageFaultStatistics_.recordPageFault(
         access.processId());
 
+    if (activityLog_ != nullptr)
+    {
+        activityLog_->recordPageFault(
+            access.processId(),
+            pageId,
+            std::nullopt,
+            "Page fault detected during access");
+    }
+
     /*
      * Prefer a free frame whenever one is available.
      * The replacement policy must not be invoked in this case.
@@ -446,6 +562,15 @@ MemoryManagementUnit::processPageFault(
 
             return failure(
                 "Page mapping became inconsistent after residency update");
+        }
+
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordFrameAssignment(
+                access.processId(),
+                pageId,
+                selectedFrame,
+                "Free frame assigned to page");
         }
 
         const auto result =
@@ -656,6 +781,16 @@ MemoryManagementUnit::processPageFault(
         victimPageId,
         victimFrame);
 
+    if (activityLog_ != nullptr)
+    {
+        activityLog_->recordPageReplacement(
+            access.processId(),
+            pageId,
+            victimFrame,
+            victimPageId,
+            "Selected victim frame for replacement");
+    }
+
     const auto requestedFrame =
         integration.mapPage(pageId);
 
@@ -725,6 +860,15 @@ MemoryManagementUnit::processPageFault(
         ++dirtyEvictionCount_;
 
         replacementPolicy_.recordDirtyEviction();
+
+        if (activityLog_ != nullptr)
+        {
+            activityLog_->recordDirtyEviction(
+                access.processId(),
+                victimPageId,
+                victimFrame,
+                "Dirty page evicted before replacement");
+        }
     }
 
     return result;
