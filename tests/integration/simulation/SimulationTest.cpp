@@ -8,6 +8,7 @@
 #include "emmus/infrastructure/configuration/SimulationConfiguration.hpp"
 #include "emmus/memory/access/MemoryAccessTypes.hpp"
 #include "emmus/simulation/Simulation.hpp"
+#include "emmus/simulation/activity/SimulationActivityLog.hpp"
 
 using emmus::algorithms::replacement::PageReplacementPolicyType;
 using emmus::infrastructure::configuration::SimulationConfiguration;
