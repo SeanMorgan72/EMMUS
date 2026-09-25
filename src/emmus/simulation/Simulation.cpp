@@ -113,6 +113,7 @@ void Simulation::initialize() {
         physicalMemoryManager_,
         *replacementPolicy_,
         configuration_.pageSize());
+    mmu_->setActivityLog(&activityLog_);
 
     registerPages();
 
@@ -410,6 +411,7 @@ SimulationResult Simulation::run() {
      * Destroy objects that reference the state being reset before
      * clearing/rebuilding that state.
      */
+    activityLog_.clear();
     accessExecutor_.reset();
     workload_.reset();
     mmu_.reset();
@@ -448,6 +450,7 @@ SimulationResult Simulation::run() {
         executionResult,
         pageFaultStatistics,
         pageReplacementStatistics,
+        activityLog_,
         std::chrono::duration_cast<
             std::chrono::nanoseconds>(
             end - start),

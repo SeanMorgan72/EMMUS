@@ -12,6 +12,7 @@
 #include "emmus/memory/physical/PhysicalMemoryManager.hpp"
 #include "emmus/simulation/ProcessManager.hpp"
 #include "emmus/simulation/SimulationResult.hpp"
+#include "emmus/simulation/activity/SimulationActivityLog.hpp"
 #include "emmus/simulation/workload/IWorkload.hpp"
 
 namespace emmus::simulation {
@@ -61,6 +62,8 @@ private:
 
     std::unique_ptr<application::MemoryAccessExecutor>
         accessExecutor_;
+
+    activity::SimulationActivityLog activityLog_;
 
     bool initialized_{false};
 };
