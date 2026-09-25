@@ -9,6 +9,7 @@ SimulationResult::SimulationResult(
     application::MemoryAccessExecutionResult executionResult,
     emmus::statistics::PageFaultStatistics pageFaultStatistics,
     emmus::statistics::PageReplacementStatistics pageReplacementStatistics,
+    emmus::simulation::activity::SimulationActivityLog activityLog,
     std::chrono::nanoseconds executionTime,
     SimulationStatus status,
     std::string diagnostic)
@@ -16,6 +17,7 @@ SimulationResult::SimulationResult(
       executionResult_(std::move(executionResult)),
       pageFaultStatistics_(std::move(pageFaultStatistics)),
       pageReplacementStatistics_(std::move(pageReplacementStatistics)),
+      activityLog_(std::move(activityLog)),
       executionTime_(executionTime),
       status_(status),
       diagnostic_(std::move(diagnostic)) {}
@@ -38,6 +40,11 @@ SimulationResult::pageFaultStatistics() const noexcept {
 const emmus::statistics::PageReplacementStatistics&
 SimulationResult::pageReplacementStatistics() const noexcept {
     return pageReplacementStatistics_;
+}
+
+const emmus::simulation::activity::SimulationActivityLog&
+SimulationResult::activityLog() const noexcept {
+    return activityLog_;
 }
 
 std::chrono::nanoseconds SimulationResult::executionTime() const noexcept {
