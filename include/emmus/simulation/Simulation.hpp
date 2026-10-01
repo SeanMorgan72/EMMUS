@@ -1,28 +1,51 @@
 #pragma once
 
+#include <chrono>
+#include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "emmus/application/MemoryAccessExecutor.hpp"
+#include "emmus/algorithms/replacement/PageReplacementPolicyType.hpp"
 #include "emmus/algorithms/replacement/PageReplacementPolicyFactory.hpp"
 #include "emmus/infrastructure/configuration/SimulationConfiguration.hpp"
 #include "emmus/memory/mmu/MemoryManagementUnit.hpp"
 #include "emmus/memory/mmu/PageTable.hpp"
 #include "emmus/memory/physical/PhysicalMemoryManager.hpp"
+#include "emmus/memory/physical/PhysicalMemoryUtilization.hpp"
 #include "emmus/simulation/ProcessManager.hpp"
 #include "emmus/simulation/SimulationResult.hpp"
 #include "emmus/simulation/activity/SimulationActivityLog.hpp"
 #include "emmus/simulation/workload/IWorkload.hpp"
+#include "emmus/statistics/PageFaultStatistics.hpp"
+#include "emmus/statistics/PageReplacementStatistics.hpp"
 
 namespace emmus::simulation {
 
+struct SimulationProgress final
+{
+    application::MemoryAccessExecutionStatistics executionStatistics;
+    algorithms::replacement::PageReplacementPolicyType replacementPolicy{
+        algorithms::replacement::PageReplacementPolicyType::FIFO};
+    emmus::statistics::PageFaultStatistics pageFaultStatistics;
+    emmus::statistics::PageReplacementStatistics pageReplacementStatistics;
+    memory::physical::PhysicalMemoryUtilization physicalMemoryUtilization;
+    std::chrono::nanoseconds elapsedTime{0};
+    std::size_t totalAccessCount{0U};
+};
+
 class Simulation final {
 public:
+    using ProgressCallback =
+        std::function<void(const SimulationProgress&)>;
+
     explicit Simulation(
         infrastructure::configuration::SimulationConfiguration configuration);
 
-    [[nodiscard]] SimulationResult run();
+    [[nodiscard]] SimulationResult run(
+        const ProgressCallback& progressCallback = {});
 
     [[nodiscard]] memory::physical::PhysicalMemoryManager&
     physicalMemoryManager() noexcept;

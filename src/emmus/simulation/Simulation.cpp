@@ -400,7 +400,8 @@ Simulation::physicalMemoryManager() const noexcept {
     return physicalMemoryManager_;
 }
 
-SimulationResult Simulation::run() {
+SimulationResult Simulation::run(
+    const ProgressCallback& progressCallback) {
     const auto start =
         std::chrono::steady_clock::now();
 
@@ -433,8 +434,30 @@ SimulationResult Simulation::run() {
             workload_->nextAccess());
     }
 
-    const auto executionResult =
-        accessExecutor_->execute(accesses);
+    application::MemoryAccessExecutionResult executionResult;
+    if (progressCallback)
+    {
+        executionResult = accessExecutor_->execute(
+            accesses,
+            [this, &progressCallback, start,
+             totalAccessCount = accesses.size()](
+                const application::MemoryAccessExecutionStatistics& statistics) {
+                progressCallback(SimulationProgress{
+                    statistics,
+                    configuration_.replacementPolicy(),
+                    mmu_->pageFaultStatistics(),
+                    replacementPolicy_->statistics(),
+                    physicalMemoryManager_.snapshotUtilization(),
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now() - start),
+                    totalAccessCount
+                });
+            });
+    }
+    else
+    {
+        executionResult = accessExecutor_->execute(accesses);
+    }
 
     const auto end =
         std::chrono::steady_clock::now();
