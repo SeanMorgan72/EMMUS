@@ -11,6 +11,7 @@
 set(EMMUS_GUI_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/PhysicalMemoryVisualizationView.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/SimulationActivityVisualizationView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/SimulationStatisticsVisualizationView.cpp"
 )
 
 add_library(
