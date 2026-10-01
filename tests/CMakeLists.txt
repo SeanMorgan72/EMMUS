@@ -119,7 +119,7 @@ function(emmuss_add_test_suite target)
 
         "LABEL;WORKING_DIRECTORY"
 
-        "SOURCES"
+        "SOURCES;LIBRARIES"
 
         ${ARGN}
     )
@@ -160,6 +160,8 @@ function(emmuss_add_test_suite target)
         ${target}
 
         PRIVATE
+
+            ${TEST_LIBRARIES}
 
             EMMUS::Core
 
@@ -426,6 +428,29 @@ endif()
 
 
 # ============================================================================
+# GUI View Tests
+# ============================================================================
+
+if(EMMUS_BUILD_GUI)
+
+    emmuss_add_test_suite(
+
+        emmus-gui-tests
+
+        LABEL
+            gui
+
+        SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/gui/SimulationStatisticsVisualizationViewTest.cpp"
+
+        LIBRARIES
+            EMMUS::GUI
+    )
+
+endif()
+
+
+# ============================================================================
 # Aggregate EMMUS Test Target
 # ============================================================================
 #
@@ -466,6 +491,16 @@ if(TARGET emmus-system-tests)
     add_dependencies(
         emmus-tests
         emmus-system-tests
+    )
+
+endif()
+
+
+if(TARGET emmus-gui-tests)
+
+    add_dependencies(
+        emmus-tests
+        emmus-gui-tests
     )
 
 endif()
