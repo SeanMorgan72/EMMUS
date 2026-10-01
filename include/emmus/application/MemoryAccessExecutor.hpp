@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <span>
 #include <vector>
 
@@ -29,6 +30,8 @@ public:
     using Access = memory::access::MemoryAccess;
     using MemoryManagementUnit =
         memory::mmu::IMemoryManagementUnit;
+    using ProgressCallback = std::function<void(
+        const MemoryAccessExecutionStatistics&)>;
 
 
     explicit MemoryAccessExecutor(
@@ -52,7 +55,8 @@ public:
      */
     [[nodiscard]]
     MemoryAccessExecutionResult execute(
-        std::span<const Access> accesses
+        std::span<const Access> accesses,
+        const ProgressCallback& progressCallback = {}
     );
 
 
@@ -63,7 +67,8 @@ public:
      */
     [[nodiscard]]
     MemoryAccessExecutionResult execute(
-        const std::vector<Access>& accesses
+        const std::vector<Access>& accesses,
+        const ProgressCallback& progressCallback = {}
     );
 
 

@@ -15,7 +15,8 @@ MemoryAccessExecutor::MemoryAccessExecutor(
 
 MemoryAccessExecutionResult
 MemoryAccessExecutor::execute(
-    std::span<const Access> accesses
+    std::span<const Access> accesses,
+    const ProgressCallback& progressCallback
 )
 {
     MemoryAccessExecutionResult executionResult;
@@ -67,6 +68,11 @@ MemoryAccessExecutor::execute(
         {
             ++statistics.dirtyEvictionCount_;
         }
+
+        if (progressCallback)
+        {
+            progressCallback(statistics);
+        }
     }
 
     const auto endTime =
@@ -85,14 +91,16 @@ MemoryAccessExecutor::execute(
 
 MemoryAccessExecutionResult
 MemoryAccessExecutor::execute(
-    const std::vector<Access>& accesses
+    const std::vector<Access>& accesses,
+    const ProgressCallback& progressCallback
 )
 {
     return execute(
         std::span<const Access>{
             accesses.data(),
             accesses.size()
-        }
+        },
+        progressCallback
     );
 }
 
