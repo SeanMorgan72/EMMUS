@@ -63,6 +63,54 @@ TEST(SimulationTest, ExecutesConfiguredNumberOfMemoryAccesses)
         configuration.memoryAccessCount());
 }
 
+TEST(SimulationTest, ReportsCumulativeProgressAfterEachAccess)
+{
+    const auto configuration = makeConfiguration(
+        1,
+        6,
+        20,
+        3,
+        PageReplacementPolicyType::FIFO);
+
+    Simulation simulation(configuration);
+    std::vector<emmus::simulation::SimulationProgress> progress;
+    const auto result = simulation.run(
+        [&progress](const emmus::simulation::SimulationProgress& update) {
+            progress.push_back(update);
+        });
+
+    ASSERT_EQ(progress.size(), configuration.memoryAccessCount());
+    ASSERT_FALSE(progress.empty());
+    EXPECT_EQ(
+        progress.back().executionStatistics.memoryAccessCount(),
+        result.executionResult().statistics().memoryAccessCount());
+    EXPECT_EQ(
+        progress.back().executionStatistics.pageFaultCount(),
+        result.pageFaultStatistics().totalPageFaultCount());
+    EXPECT_EQ(
+        progress.back().executionStatistics.pageReplacementCount(),
+        result.pageReplacementStatistics().replacementCount());
+    EXPECT_EQ(
+        progress.back().executionStatistics.dirtyEvictionCount(),
+        result.pageReplacementStatistics().dirtyEvictionCount());
+    EXPECT_EQ(
+        progress.back().physicalMemoryUtilization.totalFrames,
+        configuration.frameCount().value());
+
+    for (std::size_t index = 0U; index < progress.size(); ++index)
+    {
+        EXPECT_EQ(
+            progress[index].executionStatistics.memoryAccessCount(),
+            index + 1U);
+        if (index > 0U)
+        {
+            EXPECT_GE(
+                progress[index].elapsedTime,
+                progress[index - 1U].elapsedTime);
+        }
+    }
+}
+
 TEST(SimulationTest, CompleteRunProducesPageFaults)
 {
     const auto configuration = makeConfiguration(
