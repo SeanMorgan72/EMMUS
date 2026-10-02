@@ -51,44 +51,11 @@ file(GLOB_RECURSE EMMUS_CORE_HEADERS
     "${PROJECT_SOURCE_DIR}/include/emmus/*.hxx"
 )
 
-# ============================================================================
-# No Production Sources Yet
-# ============================================================================
-#
-# The EMMUS repository is being constructed incrementally. Allow the project
-# to configure successfully while the source tree contains only directories
-# and headers.
-#
-# Once the first .cpp implementation is added, the core library will be
-# created automatically during the next CMake configuration.
-# ============================================================================
-
 if(NOT EMMUS_CORE_SOURCES)
-
-    message(STATUS
-        "------------------------------------------------------------"
+    message(FATAL_ERROR
+        "No EMMUS core sources found under ${CMAKE_CURRENT_SOURCE_DIR}/emmus. "
+        "The core library is required by the configured applications and tests."
     )
-
-    message(STATUS
-        "EMMUS core implementation sources have not been added yet."
-    )
-
-    message(STATUS
-        "The src/emmus directory structure exists, but no .cpp, .cc, "
-        "or .cxx files were found."
-    )
-
-    message(STATUS
-        "EMMUS::Core will be created automatically once implementation "
-        "sources are added."
-    )
-
-    message(STATUS
-        "------------------------------------------------------------"
-    )
-
-    return()
-
 endif()
 
 # ============================================================================
@@ -145,6 +112,7 @@ set_target_properties(
     PROPERTIES
 
         OUTPUT_NAME emmus_core
+        EXPORT_NAME Core
 
         POSITION_INDEPENDENT_CODE ON
 )
