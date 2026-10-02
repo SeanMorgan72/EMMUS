@@ -44,27 +44,9 @@ option(EMMUS_ENABLE_INSTALL
 # C++ Standard
 # ============================================================================
 
-set(
-    EMMUS_CXX_STANDARD
-    23
-    CACHE STRING
-    "C++ standard required by EMMUS"
-)
-
-set(
-    CMAKE_CXX_STANDARD
-    ${EMMUS_CXX_STANDARD}
-)
-
-set(
-    CMAKE_CXX_STANDARD_REQUIRED
-    ON
-)
-
-set(
-    CMAKE_CXX_EXTENSIONS
-    OFF
-)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ============================================================================
 # Compilation Database
@@ -131,7 +113,7 @@ if(
 
     set(
         CMAKE_BUILD_TYPE
-        RelWithDebInfo
+        Release
         CACHE STRING
         "Build type"
         FORCE
@@ -220,7 +202,7 @@ message(STATUS "EMMUS ${PROJECT_VERSION}")
 message(STATUS "============================================================")
 
 message(STATUS
-    "C++ Standard       : C++${EMMUS_CXX_STANDARD}"
+    "C++ Standard       : C++${CMAKE_CXX_STANDARD}"
 )
 
 message(STATUS
