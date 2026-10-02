@@ -9,6 +9,9 @@ jobs:
   build-and-test:
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        preset: [debug, release]
 
     steps:
 
@@ -17,23 +20,18 @@ jobs:
 
 
       - name: Configure
-        run: >
-          cmake
-          -S .
-          -B build
-          -DCMAKE_BUILD_TYPE=Debug
-          -DEMMUS_BUILD_TESTS=ON
+        run: cmake --preset ${{ matrix.preset }}
 
 
       - name: Build
-        run: >
-          cmake
-          --build build
-          --parallel
+        run: cmake --build --preset ${{ matrix.preset }} --parallel
 
 
       - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+
+      - name: Install
         run: >
-          ctest
-          --test-dir build
-          --output-on-failure
+          cmake --install build/${{ matrix.preset }}
+          --prefix ${{ runner.temp }}/emmus-install/${{ matrix.preset }}
