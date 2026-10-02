@@ -302,50 +302,60 @@ Provides the public-facing overview and entry point for the project.
 
 ## Requirements
 
-A development environment should provide:
+A clean build requires:
 
-- A C++23-compatible compiler
-- CMake
+- CMake 3.24 or newer
 - Ninja
-- Git
-- GoogleTest
-- Required project dependencies
+- A C++23-capable C++ compiler
+- Git and an internet connection for the first configure, so CMake can fetch
+  the GoogleTest revision pinned by the project
 
-The exact versions used for the completed project should be documented in the repository.
+GoogleTest is managed by CMake; installing a system copy is not required.
 
 ---
 
 ## Building EMMUS
 
-### Configure a Debug Build
+The checked-in CMake presets provide separate, reproducible Ninja build
+directories for Debug and Release. Run these commands from the repository root.
+To obtain a fresh checkout first:
 
-A typical Debug configuration is:
-
-```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+```sh
+git clone https://github.com/SeanMorgan72/EMMUS.git
+cd EMMUS
 ```
 
-### Build the Project
+### Configure and Build Debug
 
-```bash
-cmake --build build
+```sh
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
 ```
 
-### Configure a Release Build
+### Configure and Build Release
 
-A Release build can be configured using:
-
-```bash
-cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+```sh
+cmake --preset release
+cmake --build --preset release
+ctest --preset release
 ```
 
-### Build the Release Configuration
+Debug and Release use independent `build/debug` and `build/release` directories,
+so changing configurations never depends on a previously configured build tree.
+On the first configure, CMake clones the pinned GoogleTest revision into the
+build directory.
 
-```bash
-cmake --build build-release
+Install either configuration to a staging directory with:
+
+```sh
+cmake --install build/release --prefix "$PWD/build/install"
 ```
 
-The Release configuration should generally be used for final performance measurements.
+The Release configuration should generally be used for final performance
+measurements. Options such as `EMMUS_BUILD_CLI` and `EMMUS_BUILD_GUI` can be
+enabled with additional `-D` cache variables when those application
+implementations are available.
 
 ---
 
@@ -381,8 +391,8 @@ EMMUS uses automated testing to verify individual components, subsystem interact
 
 A typical command for running the complete CTest suite is:
 
-```bash
-ctest --test-dir build --output-on-failure
+```sh
+ctest --preset debug
 ```
 
 Individual test executables may also be run directly when debugging or developing specific test suites.
