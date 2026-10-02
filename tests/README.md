@@ -52,43 +52,35 @@ The framework follows the EMMUS architecture's three verification levels:
 
 Configure the project:
 
-    cmake -S . -B build -DEMMUS_BUILD_TESTS=ON
+    cmake --preset debug
 
 Build:
 
-    cmake --build build
+    cmake --build --preset debug
 
 
 # Running Tests
 
 Run the complete test suite:
 
-    ctest --test-dir build --output-on-failure
+    ctest --preset debug
 
 
 # Running Unit Tests
 
-    ctest --test-dir build -L unit --output-on-failure
+    ctest --test-dir build/debug -L unit --output-on-failure
 
 
 # Running Integration Tests
 
-    ctest --test-dir build -L integration --output-on-failure
+    ctest --test-dir build/debug -L integration --output-on-failure
 
 
 # Running System Tests
 
-System tests are disabled by default.
+System tests are included in the default test build. Run them with:
 
-Enable them during configuration:
-
-    cmake -S . -B build \
-        -DEMMUS_BUILD_TESTS=ON \
-        -DEMMUS_BUILD_SYSTEM_TESTS=ON
-
-Then run:
-
-    ctest --test-dir build -L system --output-on-failure
+    ctest --test-dir build/debug -L system --output-on-failure
 
 
 # GoogleTest Discovery
