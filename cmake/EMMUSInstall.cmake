@@ -3,9 +3,7 @@
 # EMMUS Installation
 # ============================================================================
 #
-# Installation rules are conditional on targets existing. This allows the
-# repository to configure successfully while the implementation is being
-# developed incrementally.
+# Installation rules are conditional on optional application targets existing.
 # ============================================================================
 
 include(CMakePackageConfigHelpers)
