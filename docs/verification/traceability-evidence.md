@@ -1,83 +1,36 @@
-# Traceability Review and Evidence
+# Traceability evidence workflow
 
-This document is the review companion to the traceability matrix. It records how evidence is demonstrated during project evaluation and how the project keeps the requirement baseline synchronized with source code and tests.
-
-## Objective
-
-The project must be able to demonstrate, for each user story and requirement, that:
-
-1. the implementation exists,
-2. the code is mapped to the requirement,
-3. the relevant tests are identified,
-4. the verification result is recorded, and
-5. any coverage gaps are visible to evaluators.
+This page describes how to keep the [requirements matrix](../requirements/requirements-traceability-matrix.md) useful during implementation and review.
 
 ## Evidence model
 
-Each requirement is expected to provide evidence in the following categories:
+For each requirement, record:
 
-- Implementation evidence: source files and design artifacts
-- Test evidence: unit, integration, and/or system tests
-- Verification evidence: test run output and review status
-- Gap evidence: areas without implementation or automated verification
+1. **Implementation:** public interface and/or implementation files that fulfill the behavior.
+2. **Test:** relevant unit, integration, system, and optional view test files.
+3. **Verification:** the reproducible command and outcome for the test suite actually run.
+4. **Gap:** any missing layer, assumption, unsupported behavior, or limitation that affects interpretation.
 
-## Requirement verification workflow
+Evidence should point to current paths in the source tree. A class existing is not proof of complete behavior; test filenames are not proof that tests passed.
 
-During active development, the following workflow applies:
+## Review workflow
 
-1. Add or update the requirement in the matrix.
-2. Link each requirement to implementation artifacts.
-3. Add or update test references for the relevant verification layer.
-4. Execute the relevant test commands.
-5. Record overall verification status and any unresolved gaps.
-6. Present the matrix and evidence during review.
+1. Add or revise the story/requirement summary in the matrix.
+2. Link the implementation and the most relevant test sources.
+3. Run the focused test label after building, then the full CTest suite when appropriate.
+4. Record observed result and unresolved coverage/quality limitations without claiming unperformed verification.
+5. Update architecture or workflow pages when user-visible behavior or developer instructions change.
 
-## Required project commands
+Core test labels and commands are described in [Testing and performance](testing-and-performance.md); configure/build/install instructions are in [Build and development workflow](../development/build-and-workflow.md).
 
-The baseline verification command is:
+## Current evidence state
 
-```bash
-ctest --test-dir build --output-on-failure
-```
+- Unit, integration, and system test source trees exist and are required by the normal test-enabled CMake configuration.
+- System tests exercise complete headless simulations; `tests/system` is not empty.
+- The optional GUI-view test is built only when `EMMUS_BUILD_GUI=ON`.
+- The CI workflow runs Debug and Release configure/build/test/install steps.
+- The standard CI workflow does not run performance benchmarks.
+- There is no automated requirement-matrix or Markdown-link validation.
+- The project contains no checked-in numeric benchmark-result dataset.
 
-When narrowing validation to a subsystem or a review item, run the relevant test binary or CTest target directly instead of broad suite execution.
-
-## Evidence examples from the current codebase
-
-- PageTable and mapping lifecycle: [tests/integration/memory/PageTablePhysicalMemoryIntegrationTest.cpp](../../tests/integration/memory/PageTablePhysicalMemoryIntegrationTest.cpp)
-- MMU fault and invalid-access behavior: [tests/unit/memory/mmu/MemoryManagementUnitTest.cpp](../../tests/unit/memory/mmu/MemoryManagementUnitTest.cpp) and [tests/integration/memory/MemoryManagementUnitIntegrationTest.cpp](../../tests/integration/memory/MemoryManagementUnitIntegrationTest.cpp)
-- Policy selection and factory behavior: [tests/unit/algorithms/replacement/PageReplacementPolicyFactoryTest.cpp](../../tests/unit/algorithms/replacement/PageReplacementPolicyFactoryTest.cpp)
-- FIFO/LRU policy assertions: [tests/unit/algorithms/replacement/FIFOPageReplacementPolicyTest.cpp](../../tests/unit/algorithms/replacement/FIFOPageReplacementPolicyTest.cpp) and [tests/unit/algorithms/replacement/LRUPageReplacementPolicyTest.cpp](../../tests/unit/algorithms/replacement/LRUPageReplacementPolicyTest.cpp)
-
-## Current traceability status
-
-| Category | Status |
-|---|---|
-| Requirements identified | Yes |
-| Implementation references mapped | Yes |
-| Unit test evidence linked | Yes, for major system areas |
-| Integration test evidence linked | Yes |
-| System test evidence linked | No |
-| Coverage gaps documented | Yes |
-
-## Critical gaps
-
-The project currently has a significant system-level verification gap:
-
-- [tests/system](../../tests/system) is empty.
-- No end-to-end workload simulations are present for complete scenario validation.
-- Process-management and simulation lifecycle requirements are partially implemented and not yet fully verified.
-
-## Review checklist
-
-Before a release, review, or project evaluation, confirm that:
-
-- [ ] every requirement in the matrix has an implementation reference,
-- [ ] every requirement has a test reference or a documented reason for no test coverage,
-- [ ] every verification status is current,
-- [ ] all gaps are recorded and accepted,
-- [ ] the matrix is synchronized with the working source tree.
-
-## Acceptance for US-1204
-
-US-1204 is considered implemented when the project can show a requirement-to-implementation-to-test chain for a given requirement and document the remaining gaps without ambiguity.
+The [matrix](../requirements/requirements-traceability-matrix.md) records known requirement-level gaps, including the absence of future-trace injection for Optimal during normal simulations.
