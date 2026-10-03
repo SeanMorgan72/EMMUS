@@ -392,10 +392,21 @@ EMMUS uses automated testing to verify individual components, subsystem interact
 A typical command for running the complete CTest suite is:
 
 ```sh
-ctest --preset debug
+cmake --preset debug
+cmake --build --preset debug --parallel
+ctest --preset debug --no-tests=error
 ```
 
-Individual test executables may also be run directly when debugging or developing specific test suites.
+These commands work from a fresh checkout with no existing `build/debug`
+directory. CMake fetches the pinned GoogleTest revision, builds all required
+unit, integration, and system test targets, and CTest reports failure if test
+discovery produces no registered tests. Add `--output-on-failure` to the CTest
+command when running it without the preset.
+
+Individual tests can be selected by name with CTest's `-R` option. The
+`unit`, `integration`, and `system` labels support running one verification
+level at a time; GUI tests are included when `EMMUS_BUILD_GUI` is enabled and
+the GUI dependencies are available.
 
 ---
 
