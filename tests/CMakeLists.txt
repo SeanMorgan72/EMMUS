@@ -270,8 +270,8 @@ if(EMMUS_UNIT_TEST_SOURCES)
 else()
 
     message(
-        STATUS
-        "No unit-test sources found."
+        FATAL_ERROR
+        "No unit-test sources found. The complete EMMUS test suite requires unit tests."
     )
 
 endif()
@@ -320,8 +320,8 @@ if(EMMUS_INTEGRATION_TEST_SOURCES)
 else()
 
     message(
-        STATUS
-        "No integration-test sources found."
+        FATAL_ERROR
+        "No integration-test sources found. The complete EMMUS test suite requires integration tests."
     )
 
 endif()
@@ -365,8 +365,8 @@ if(EMMUS_SYSTEM_TEST_SOURCES)
 else()
 
     message(
-        STATUS
-        "No system-test sources found."
+        FATAL_ERROR
+        "No system-test sources found. The complete EMMUS test suite requires system tests."
     )
 
 endif()
