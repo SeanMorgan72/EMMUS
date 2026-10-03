@@ -1,19 +1,9 @@
-# Requirements and Traceability
+# Requirements and traceability
 
-This directory holds the requirement baselines and traceability artifacts for project review and evaluation.
+This directory contains the requirement summaries and evidence index used for review.
 
-## Primary artifacts
+- [Requirements traceability matrix](requirements-traceability-matrix.md) maps user-story IDs to source, tests, and limitations.
+- [Traceability evidence workflow](../verification/traceability-evidence.md) explains how to update and review those mappings.
+- [Page-fault comparison](page-fault-comparison.md) and [execution-time comparison](execution-time-comparison.md) record performance-related requirement context.
 
-- [Requirements Traceability Matrix](requirements-traceability-matrix.md)
-- [Traceability Review and Evidence](../verification/traceability-evidence.md)
-
-## Review expectation
-
-Every newly added requirement, user story, or change request must be linked to:
-
-1. implementation references,
-2. relevant unit/integration/system test evidence,
-3. verification status, and
-4. any identified coverage gaps.
-
-The matrix is the authoritative project baseline for demonstrating implemented and verified behavior during architectural and project review.
+For each changed requirement, update implementation/test references and keep verification claims specific to tests actually run. Record uncovered behavior as a gap instead of inferring verification from implementation.
