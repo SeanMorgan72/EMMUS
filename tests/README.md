@@ -54,16 +54,16 @@ Configure the project:
 
     cmake --preset debug
 
-Build:
+Build every enabled test target:
 
     cmake --build --preset debug
 
 
 # Running Tests
 
-Run the complete test suite:
+Run the complete discovered suite and fail if no tests were registered:
 
-    ctest --preset debug
+    ctest --preset debug --no-tests=error
 
 
 # Running Unit Tests
@@ -97,6 +97,11 @@ For example:
     TEST(MyTest, DoesSomething)
 
 automatically becomes a CTest test after the test executable is built.
+
+Unit, integration, and system test sources are required at configure time.
+This prevents a missing test tier from being mistaken for a complete suite.
+CI also uses CTest's `--no-tests=error` option so an empty discovery result
+cannot pass silently.
 
 
 # Testing Conventions
@@ -207,7 +212,7 @@ Example:
     )
 
 
-# Planned Unit-Test Mapping
+# Unit-Test Mapping
 
 | Test Area | Primary Verification |
 |-----------|----------------------|
@@ -229,7 +234,7 @@ Example:
 | Workload | Deterministic workload generation |
 
 
-# Planned Integration-Test Mapping
+# Integration-Test Mapping
 
 Integration tests should verify interactions between:
 
@@ -240,9 +245,9 @@ Integration tests should verify interactions between:
 - Simulation + Statistics
 
 
-# Planned System-Test Mapping
+# System-Test Mapping
 
-System-level tests should verify complete simulation scenarios:
+System-level tests verify complete simulation scenarios:
 
 - Complete workload execution.
 - Replacement-algorithm comparison.
