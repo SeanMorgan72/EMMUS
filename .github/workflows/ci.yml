@@ -28,7 +28,7 @@ jobs:
 
 
       - name: Test
-        run: ctest --preset ${{ matrix.preset }}
+        run: ctest --preset ${{ matrix.preset }} --no-tests=error
 
 
       - name: Install
