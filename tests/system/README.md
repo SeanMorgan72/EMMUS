@@ -1,20 +1,24 @@
-# System Test Traceability Backlog
+# System Tests
 
-This directory is reserved for end-to-end verification scenarios that exercise the complete EMMUS system.
+System tests exercise complete EMMUS simulation workflows without requiring
+the optional GUI.
 
-## Current status
+## Implemented scenarios
 
-The system-level test suite is currently empty. As a result, requirements that require full workload, process, simulation, and algorithm comparison verification remain partially or not yet system-validated.
+- `CompleteSimulationExecutionTest.cpp` verifies configured sequential and
+  seeded random workloads complete and emit the requested number of accesses.
+- `ControlledBenchmarkSystemTest.cpp` compares consistent benchmark output
+  across replacement policies and checks benchmark configuration behavior.
+- `EndToEndSimulationSystemTest.cpp` verifies sequential, multi-process random,
+  locality, and mixed workloads; invalid configuration handling; same-seed
+  repeatability; and all registered replacement policies.
+- `SystemFrameworkSmokeTest.cpp` verifies the system-test framework is linked.
 
-## Expected system-level scenarios
-
-- complete workload execution,
-- policy comparison under controlled workloads,
-- page-fault count validation,
-- dirty-page eviction behavior,
-- simulation statistics verification,
-- configuration-driven end-to-end runs.
+All system tests are automatically discovered from the test executable and
+registered with CTest under the `system` label.
 
 ## Traceability expectation
 
-Each future system test must map to a requirement ID in the traceability matrix and must explicitly record the requirement it verifies.
+System tests should identify the requirement or end-to-end behavior they
+verify. Where a requirement ID is available, include it in the test name or
+test documentation.
