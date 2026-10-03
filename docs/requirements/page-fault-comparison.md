@@ -15,6 +15,10 @@ This requirement ensures that equivalent benchmarking workloads can be executed 
 - A simulation-level benchmark comparison runner executes the same workload against FIFO, LRU, Clock, and Optimal policies.
 - The comparison output is designed to integrate with the existing benchmark configuration and statistics infrastructure without introducing policy-specific logic outside the simulation wrapper.
 
+## Interpretation limitation
+
+The comparison runner executes FIFO, LRU, Clock, and Optimal for the same benchmark parameters and seeded workload. However, the normal `Simulation` path does not provide the future-reference sequence required by `OptimalPageReplacementPolicy`. The reported “Optimal” run is therefore not a theoretical optimal baseline. Do not make claims about Optimal's minimum possible fault count from this runner until future-trace injection is implemented.
+
 ## Expected outputs
 
 - Per-policy page-fault totals for the same workload
@@ -25,4 +29,5 @@ This requirement ensures that equivalent benchmarking workloads can be executed 
 ## Verification evidence
 
 - Unit verification is in `tests/unit/statistics/PageFaultComparisonTest.cpp`.
-- System-level benchmark comparisons are validated through the same benchmark configuration patterns used by the existing simulation tests.
+- The system-level controlled benchmark tests exercise equivalent configuration and access totals; they do not establish a published numeric performance result.
+- Broader test coverage and commands are documented in [Testing and performance](../verification/testing-and-performance.md).
