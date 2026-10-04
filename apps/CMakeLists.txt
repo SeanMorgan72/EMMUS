@@ -3,9 +3,9 @@
 # EMMUS Applications
 # ============================================================================
 
-if(EMMUS_BUILD_CLI)
+if(EMMUS_BUILD_DEMO)
 
-    add_subdirectory(emmus-cli)
+    add_subdirectory(emmus-demo)
 
 endif()
 
