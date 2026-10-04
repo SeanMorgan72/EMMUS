@@ -19,8 +19,8 @@ The project is intended as an educational and engineering portfolio project—no
 | Replacement policies | FIFO, LRU, Clock, and Optimal policy classes |
 | Workloads | Sequential, seeded random, locality, mixed, and multi-process composition |
 | Verification | GoogleTest suites registered with CTest: unit, integration, and system |
-| Presentation | Optional text-rendering view library for memory, activity, and statistics; **not** a windowed GUI application |
-| CLI | Optional target is scaffolded, but currently cannot be enabled because `apps/emmus-cli/main.cpp` is absent |
+| Presentation | Runnable `emmus-demo` portfolio walkthrough, plus an optional text-rendering view library; **not** a windowed GUI application |
+| CLI | A separate general-purpose CLI target remains scaffolded but unavailable because `apps/emmus-cli/main.cpp` is absent |
 
 ## Quick start
 
@@ -47,6 +47,7 @@ For complete setup, optional targets, installation, test filters, and CI behavio
 include/emmus/       Public core interfaces
 src/emmus/           Core implementation
 apps/emmus-gui/      Optional text-rendering view library
+apps/emmus-demo/     Runnable portfolio demonstration
 apps/emmus-cli/      CLI target scaffold (entry point not implemented)
 tests/unit/          Component-level tests
 tests/integration/   Cross-component tests
@@ -57,3 +58,5 @@ docs/                Architecture, requirements, workflow, and evidence
 ```
 
 The project uses an incremental engineering approach: requirements and traceability are maintained in `docs/requirements/`, tests are discovered by CMake/GoogleTest and run through CTest, and CI builds/tests both Debug and Release presets before staging an install. The detailed documentation linked above distinguishes implemented behavior from known gaps and future work.
+
+For a short, repeatable evaluation of the implemented simulator, follow the [US-1504 demonstration workflow](docs/demo/us-1504-demonstration.md). The default Debug and Release presets build `emmus-demo`; it verifies a controlled replacement trace and reports results from a seeded simulation and same-configuration policy comparisons.
