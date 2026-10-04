@@ -5,6 +5,7 @@ This documentation set explains the implemented system and its engineering evide
 | Review question | Document |
 |---|---|
 | What does the system model, and how are its components designed? | [System architecture](architecture/system-architecture.md) |
+| How can I run a short, reproducible portfolio walkthrough? | [US-1504 demonstration](demo/us-1504-demonstration.md) |
 | Which stories and behaviors are implemented, and what verifies them? | [Requirements traceability matrix](requirements/requirements-traceability-matrix.md) |
 | What tests exist, what do they prove, and what performance data is available? | [Testing and performance](verification/testing-and-performance.md) |
 | How can I configure, build, test, install, and contribute reproducibly? | [Build and development workflow](development/build-and-workflow.md) |
