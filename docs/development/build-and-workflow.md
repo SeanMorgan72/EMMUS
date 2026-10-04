@@ -48,6 +48,7 @@ Options are controlled with `-DNAME=value` at configure time. The root project d
 | `EMMUS_BUILD_TESTS` | `ON` | Include EMMUS GoogleTest targets (also requires `BUILD_TESTING`). |
 | `BUILD_TESTING` | CTest default, `ON` | Master CTest switch. |
 | `EMMUS_BUILD_CLI` | `OFF` | Request the CLI target. **Not currently buildable:** enabling it fails configuration because `apps/emmus-cli/main.cpp` does not exist. |
+| `EMMUS_BUILD_DEMO` | `ON` | Build the runnable portfolio demonstration (`emmus-demo`) and, when tests are enabled, register a CTest smoke test. |
 | `EMMUS_BUILD_GUI` | `OFF` | Build `EMMUS::GUI`, an optional static text-view library, plus its view test. It does not create a windowed GUI. |
 | `EMMUS_ENABLE_WARNINGS` | `ON` | Enable the project warning set for supported compilers. |
 | `EMMUS_ENABLE_SANITIZERS` | `OFF` | Enable AddressSanitizer and UndefinedBehaviorSanitizer on GNU/Clang-family targets; the CMake module warns and returns for MSVC. |
@@ -75,6 +76,10 @@ ctest --test-dir build/debug -L system --output-on-failure
 ```
 
 Build first, because discovered GoogleTest cases depend on built executables. Include `--no-tests=error` for release/CI verification. When the GUI option was enabled, add `-L gui` to run its view test. `ctest --test-dir build/debug -N` lists discovered tests and labels.
+
+## Portfolio demonstration
+
+The default presets build the demo and include `emmus-demo-smoke` in CTest. Run `./build/debug/bin/emmus-demo` after the normal Debug build; it exercises a fixed MMU trace, a seeded locality simulation, utilization/event reporting, and same-seed replacement-policy comparisons. The detailed workflow, expected controlled-trace counts, interpretation notes, and traceability links are in the [US-1504 demonstration guide](../demo/us-1504-demonstration.md).
 
 ## Installation
 
