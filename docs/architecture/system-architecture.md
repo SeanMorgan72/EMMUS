@@ -18,7 +18,7 @@ The implementation supports these user-visible capabilities:
 - Compare page-fault and replacement-time statistics across policy runs.
 - Provide optional text renderers for memory utilization, activity events, and simulation statistics.
 
-It does not provide process scheduling, protection levels, demand-zero contents, swap/write-back I/O, a command-line interface, a graphical window, or a hardware-accurate physical-address/data path.
+It does not provide process scheduling, protection levels, demand-zero contents, swap/write-back I/O, a general-purpose command-line interface, a graphical window, or a hardware-accurate physical-address/data path. The dedicated `emmus-demo` executable is a repeatable presentation workflow, not a general simulator control interface.
 
 ## Runtime structure
 
