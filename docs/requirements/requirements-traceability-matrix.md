@@ -20,6 +20,7 @@ This matrix maps the requirement IDs already recorded in EMMUS documentation to 
 | US-1302 | Compare page-fault counts and fault rates across policies. | [Fault statistics](../../src/emmus/statistics/PageFaultStatistics.cpp), [comparison](../../src/emmus/statistics/PageFaultComparison.cpp), [runner](../../src/emmus/simulation/SimulationComparison.cpp). | [Comparison tests](../../tests/unit/statistics/PageFaultComparisonTest.cpp), [controlled benchmark tests](../../tests/system/simulation/ControlledBenchmarkSystemTest.cpp). | Comparison code and tests exist; no published numeric benchmark report. |
 | US-1303 | Measure replacement and total simulation execution time. | [Replacement statistics](../../src/emmus/statistics/PageReplacementStatistics.cpp), [timing comparison](../../src/emmus/statistics/ExecutionTimeComparison.cpp), [runner](../../src/emmus/simulation/SimulationComparison.cpp). | [Statistics tests](../../tests/unit/statistics/PageReplacementStatisticsTest.cpp), [comparison tests](../../tests/unit/statistics/ExecutionTimeComparisonTest.cpp). | Instrumentation/ranking tested; no repeated controlled performance dataset or regression threshold. |
 | US-1503 | As a portfolio reviewer, I want clear project documentation so that I can understand the engineering process used to develop EMMUS. | [Project overview](../../README.md), [architecture](../architecture/system-architecture.md), [workflow](../development/build-and-workflow.md), [verification](../verification/testing-and-performance.md), requirement pages in `docs/`. | Manual comparison to source/configuration/tests and reproducible commands in the build guide. | Documentation set provided; automated docs/link validation is not configured. |
+| US-1504 | As a portfolio reviewer, I want a professional demonstration of EMMUS so that the project's technical capabilities can be evaluated quickly. | [Runnable demo](../../apps/emmus-demo/main.cpp), [demo workflow and scenario](../demo/us-1504-demonstration.md), [CMake target](../../apps/emmus-demo/CMakeLists.txt). | `emmus-demo-smoke` CTest; existing MMU/policy/statistics unit, integration, and system suites. | The controlled trace verifies exact FIFO/LRU/Optimal fault totals; its Optimal policy receives future references. Timing comparisons remain illustrative single-run measurements; ordinary Simulation comparison does not supply Optimal with future references. |
 
 ## Test-file index
 
@@ -32,11 +33,11 @@ This matrix maps the requirement IDs already recorded in EMMUS documentation to 
 | Statistics and comparisons | `tests/unit/statistics/` |
 | Optional view | `tests/gui/SimulationStatisticsVisualizationViewTest.cpp` (only with `EMMUS_BUILD_GUI=ON`) |
 
-CTest labels are `unit`, `integration`, `system`, and optional `gui`. Individual paths and commands are in [Testing and performance](../verification/testing-and-performance.md).
+CTest labels are `unit`, `integration`, `system`, `demo`, and optional `gui`. Individual paths and commands are in [Testing and performance](../verification/testing-and-performance.md).
 
 ## Coverage gaps to retain during review
 
-- No interactive GUI or working CLI executable is present.
+- No interactive GUI or general-purpose CLI is present; `emmus-demo` is a dedicated demonstration executable.
 - Normal simulation does not provide Optimal with a future access trace.
 - No stable benchmark results, performance thresholds, memory-footprint measurements, or repeated-run analysis are checked in.
 - Some component requirements lack dedicated end-to-end assertions.
