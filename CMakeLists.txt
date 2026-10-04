@@ -20,6 +20,11 @@ option(EMMUS_BUILD_CLI
     OFF
 )
 
+option(EMMUS_BUILD_DEMO
+    "Build the EMMUS portfolio demonstration"
+    ON
+)
+
 option(EMMUS_BUILD_GUI
     "Build the EMMUS graphical application"
     OFF
@@ -144,6 +149,7 @@ add_subdirectory(
 
 if(
     EMMUS_BUILD_CLI
+    OR EMMUS_BUILD_DEMO
     OR EMMUS_BUILD_GUI
 )
 
@@ -178,6 +184,20 @@ if(
     add_subdirectory(
         tests
     )
+
+    if(EMMUS_BUILD_DEMO)
+
+        add_test(
+            NAME emmus-demo-smoke
+            COMMAND $<TARGET_FILE:emmus-demo>
+        )
+
+        set_tests_properties(
+            emmus-demo-smoke
+            PROPERTIES LABELS "demo"
+        )
+
+    endif()
 
 endif()
 
@@ -219,6 +239,10 @@ message(STATUS
 
 message(STATUS
     "Build CLI          : ${EMMUS_BUILD_CLI}"
+)
+
+message(STATUS
+    "Build Demo         : ${EMMUS_BUILD_DEMO}"
 )
 
 message(STATUS
