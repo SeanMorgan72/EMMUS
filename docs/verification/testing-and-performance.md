@@ -13,6 +13,8 @@ EMMUS uses GoogleTest for assertions, CMake for test executable construction/dis
 
 The core tests do not require an application GUI. The tests are discovered by CMake's `gtest_discover_tests()` and tagged `unit`, `integration`, `system`, or (when enabled) `gui`. Test sources are required at configure time for each core tier; CTest's `--no-tests=error` prevents no discovered tests from being mistaken for success.
 
+The default build also registers `emmus-demo-smoke` when `EMMUS_BUILD_DEMO=ON`. It runs the portfolio walkthrough, including controlled FIFO/LRU/Optimal page-fault assertions; it complements rather than replaces the layered GoogleTest suites.
+
 ## What the tests establish
 
 - **Memory primitives:** Page state, frame allocation/release, typed access records, page-table mappings, and mapping consistency.
